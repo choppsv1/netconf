@@ -338,11 +338,15 @@ class NetconfSession (object):
                              str(error),
                              traceback.format_exc())
             else:
-                raise
+                logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
+                             str(error),
+                             traceback.format_exc())
         except ChannelClosed as error:
             # Should we close the session cleanly or just disconnect?
-            logger.error("%s: Session channel closed: %s", str(self), str(error))
-            assert self.session_open is False
+            logger.error("%s: Session channel closed [session_open == %s]: %s",
+                         str(self),
+                         str(self.session_open),
+                         str(error))
         except SessionError as error:
             # Should we close the session cleanly or just disconnect?
             logger.error("%s Session error [closing session]: %s", str(self), str(error))
@@ -351,18 +355,17 @@ class NetconfSession (object):
             self.close()
             with self.cv:
                 self.cv.notify_all()
-            raise
         except Exception as error:
             if reader_thread.keep_running:
-                logger.error("Unexpected excpetion [disconnecting]: %s", str(error))
+                logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
+                             str(error),
+                             traceback.format_exc())
                 self.close()
             else:
                 # XXX might want to catch errors due to disconnect and not re-raise
-                logger.info("Excpetion in reader thread [exiting]: %s", str(error))
                 logger.error("Exception in reader thread [exiting]: %s: %s", str(error), traceback.format_exc())
             with self.cv:
                 self.cv.notify_all()
-            raise
 
 __author__ = 'Christian Hopps'
 __date__ = 'December 23 2014'

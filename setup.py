@@ -31,7 +31,7 @@ def read(fname):
 setup (name='netconf',
        version='0.1.1',
        description='Netconf Client/Server Library',
-       long_description=read("README.md"),
+       long_description=read("README.rst"),
        author='Christian E. Hopps',
        author_email='chopps@gmail.com',
        url='https://github.com/choppsv1/netconf',

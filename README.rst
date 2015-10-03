@@ -17,7 +17,7 @@ Master Build and Coverage status:
 ---------------------------------
 
 .. image:: https://travis-ci.org/choppsv1/netconf.svg?branch=master
-:target: https://travis-ci.org/choppsv1/netconf?branch=master
+   :target: https://travis-ci.org/choppsv1/netconf?branch=master
 
 .. image:: https://coveralls.io/repos/choppsv1/netconf/badge.svg?branch=master&service=github
-:target: https://coveralls.io/github/choppsv1/netconf?branch=master
+   :target: https://coveralls.io/github/choppsv1/netconf?branch=master

@@ -31,6 +31,8 @@ from netconf import server
 from netconf.error import RPCError
 
 logger = logging.getLogger(__name__)
+SERVER_DEBUG = True
+CLIENT_DEBUG = False
 
 
 class NetconfMethods (server.NetconfMethods):
@@ -46,7 +48,8 @@ def setup_module (unused_module):
                                                                         password="admin"),
                                 server_methods=NetconfMethods(),
                                 port=9930,
-                                host_key="tests/host_key")
+                                host_key="tests/host_key",
+                                debug=SERVER_DEBUG)
         # setup_module.init = True
 setup_module.init = False
 
@@ -142,28 +145,28 @@ def test_multi_open ():
                                  server_methods=NetconfMethods(),
                                  port=9931,
                                  host_key="tests/host_key",
-                                 debug=False)
+                                 debug=SERVER_DEBUG)
     del ns
 
     import gc
     gc.collect()
 
     logger.info("Open sessions")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=False) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
 
     logger.info("Close sessions")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=False) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
 
     logger.info("Closeing")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=False) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
     logger.info("Reclosing")
     for session in sessions:
         session.close()

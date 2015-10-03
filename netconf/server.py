@@ -326,7 +326,7 @@ class NetconfSSHServerSocket (object):
             raise
 
         self.thread = threading.Thread(None,
-                                       self._ssh_accept_thread,
+                                       self._accept_chan_thread,
                                        name="NetconfSSHAcceptThread")
         self.thread.daemon = True
         self.thread.start()
@@ -334,14 +334,18 @@ class NetconfSSHServerSocket (object):
     def __str__ (self):
         return "NetconfSSHServerSocket(client: {})".format(self.client_addr)
 
-    def _ssh_accept_thread (self):
+    def _accept_chan_thread (self):
         try:
             while True:
                 if self.debug:
                     logger.debug("%s: Accepting channel connections", str(self))
                 channel = self.ssh.accept(timeout=None)
                 if channel is None:
-                    logger.info("%s: Got channel as None", str(self))
+                    if not self.ssh.is_active():
+                        logger.debug("%s: Got channel as None: exiting", str(self))
+                        return
+
+                    logger.warn("%s: Got channel as None on active.", str(self))
                     continue
 
                 # XXX for some reason we are accepting another connection after we close the previous channel.
@@ -352,8 +356,10 @@ class NetconfSSHServerSocket (object):
                 if self.debug:
                     logger.debug("%s: Client session-id %s created: %s", str(self), str(sid), str(session))
         except Exception as error:
-            logger.info("%s: Unexpected exception: %s: %s", str(self), str(error), traceback.format_exc())
-            logger.error("%s: Unexpected exception: %s closing", str(self), str(error))
+            if self.debug:
+                logger.error("%s: Unexpected exception: %s: %s", str(self), str(error), traceback.format_exc())
+            else:
+                logger.error("%s: Unexpected exception: %s closing", str(self), str(error))
             self.client_socket.close()
             self.client_socket = None
             self.server.remove_socket(self)
@@ -454,7 +460,7 @@ class NetconfSSHServer (object):
             self.sockets = []
 
             self.thread = threading.Thread(None,
-                                           self._accept_thread,
+                                           self._accept_socket_thread,
                                            name="NetconfAcceptThread " + pname,
                                            args=[protosocket])
             self.thread.daemon = True
@@ -470,7 +476,7 @@ class NetconfSSHServer (object):
         with self.lock:
             self.sockets.remove(serversocket)
 
-    def _accept_thread (self, proto_sock):
+    def _accept_socket_thread (self, proto_sock):
         """Call from within a thread to accept connections."""
         while True:
             if self.debug:

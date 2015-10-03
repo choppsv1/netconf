@@ -13,8 +13,7 @@ The following modules are present:
 - ``util`` - Netconf utility functions.
 
 
-Master Build and Coverage status:
----------------------------------
+master branch status:
 
 .. image:: https://travis-ci.org/choppsv1/netconf.svg?branch=master
    :target: https://travis-ci.org/choppsv1/netconf?branch=master

@@ -343,10 +343,17 @@ class NetconfSession (object):
                              traceback.format_exc())
         except ChannelClosed as error:
             # Should we close the session cleanly or just disconnect?
-            logger.error("%s: Session channel closed [session_open == %s]: %s",
-                         str(self),
-                         str(self.session_open),
-                         str(error))
+            if self.debug:
+                logger.error("%s: Session channel closed [session_open == %s]: %s: %s",
+                            selftr(self),
+                             str(self.session_open),
+                             str(error),
+                             traceback.format_exc())
+            else:
+                logger.error("%s: Session channel closed [session_open == %s]: %s",
+                            str(self),
+                            str(self.session_open),
+                            str(error))
         except SessionError as error:
             # Should we close the session cleanly or just disconnect?
             logger.error("%s Session error [closing session]: %s", str(self), str(error))

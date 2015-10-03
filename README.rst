@@ -16,18 +16,12 @@ The following modules are present:
 Build and Coverage status:
 --------------------------
 
-Current Master Build Status: |master_ci_status|
+Current Master Build Status: |master_ci_status|_
 
-.. |master_ci_status| image:: https://travis-ci.org/choppsv1/netconf.svg?branch=master travis_build_status
+.. |master_ci_status| image:: https://travis-ci.org/choppsv1/netconf.svg?branch=master
+.. _master_ci_status https://travis-ci.org/choppsv1/netconf?branch=master
 
-Current Master Coverage Status: |coverage_status|
+Current Master Coverage Status: |coverage_status|_
 
-.. |coverage_status| image:: https://coveralls.io/repos/choppsv1/netconf/badge.svg?branch=master&service=github :target: https://coveralls.io/github/choppsv1/netconf?branch=master
-
-
-Original Coveralls Image
-........................
-
-.. image::
-    https://coveralls.io/repos/choppsv1/netconf/badge.svg?branch=master&service=github :target: https://coveralls.io/github/choppsv1/netconf?branch=master
-
+.. |coverage_status| image:: https://coveralls.io/repos/choppsv1/netconf/badge.svg?branch=master&service=github
+.. _coverage_status https://coveralls.io/github/choppsv1/netconf?branch=master

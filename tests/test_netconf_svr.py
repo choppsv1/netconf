@@ -33,6 +33,8 @@ from netconf.error import RPCError
 logger = logging.getLogger(__name__)
 SERVER_DEBUG = True
 CLIENT_DEBUG = False
+NC_PORT = None
+ncserver = None
 
 
 class NetconfMethods (server.NetconfMethods):
@@ -44,25 +46,24 @@ def setup_module (unused_module):
     if setup_module.init:
         logger.error("XXX Called setup_module multiple times")
     else:
-        server.NetconfSSHServer(server_ctl=server.SSHUserPassController(username=getpass.getuser(),
-                                                                        password="admin"),
-                                server_methods=NetconfMethods(),
-                                port=9930,
-                                host_key="tests/host_key",
-                                debug=SERVER_DEBUG)
-        # setup_module.init = True
+        global ncserver
+        server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
+        ncserver = server.NetconfSSHServer(server_ctl=server_ctl,
+                                           server_methods=NetconfMethods(),
+                                           port=NC_PORT,
+                                           host_key="tests/host_key",
+                                           debug=SERVER_DEBUG)
+        setup_module.init = True
 setup_module.init = False
 
 
 def cleanup_module (unused_module):
     if setup_module.init:
-        logger.error("XXX Done with server")
-        import time
-        time.sleep(10)
+        logger.error("Done with server")
 
 
 def test_not_supported ():
-    session = client.NetconfSSHSession("127.0.0.1", port=9930)
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
     assert session
 
     query = "<get-config><barfoo/></get-config>"
@@ -76,7 +77,7 @@ def test_not_supported ():
 
 
 def test_malformed ():
-    session = client.NetconfSSHSession("127.0.0.1", port=9930)
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
     assert session
 
     query = "<get><foobar/></get><get/>"
@@ -90,7 +91,7 @@ def test_malformed ():
 
 
 def test_get ():
-    session = client.NetconfSSHSession("127.0.0.1", port=9930)
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
     assert session
 
     query = "<get><status/></get>"
@@ -100,7 +101,7 @@ def test_get ():
 
 
 def test_close ():
-    session = client.NetconfSSHSession("127.0.0.1", port=9930)
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
     assert session
     session.close()
 
@@ -108,65 +109,35 @@ def test_close ():
 def test_multi_session ():
     sessions = []
     for unused in range(0, 10):
-        sessions.append(client.NetconfSSHSession("127.0.0.1", port=9930))
-
-
-def _init_logging (prefix, level, svr):
-    logbook.compat.redirect_logging()
-
-    logbook.default_handler.level = level
-
-    def inject_threadid (record):
-        if 'threadName' not in record.extra:
-            thread = threading.current_thread()
-            thread_name = thread.name
-            record.extra['threadName'] = thread_name
-        return record
-    if svr:
-        handler = logbook.StreamHandler(sys.stderr, logbook.ERROR, bubble=False)
-    else:
-        handler = logbook.StreamHandler(sys.stdout, logbook.ERROR, bubble=False)
-    #handler.format_string = "{record.channel}: {record.threadName}: {record.message}"
-    handler.format_string = ("{record.time:%y-%m-%d %H:%M:%S.%f}: " +
-                             prefix +
-                             ": {record.level_name}: {record.extra[threadName]}: {record.message}")
-    handler.level = level
-    handler.push_application()
-    logbook.Processor(inject_threadid).push_application()
+        sessions.append(client.NetconfSSHSession("127.0.0.1", port=ncserver.port))
 
 
 def test_multi_open ():
-    # XXX want this is a different process?
-    # _init_logging("MULTI", logbook.WARNING, True)
-
     logger.info("Create Server")
-    ns = server.NetconfSSHServer(server_ctl=server.SSHUserPassController(username=getpass.getuser(),
-                                                                         password="admin"),
+    server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
+    ns = server.NetconfSSHServer(server_ctl=server_ctl,
                                  server_methods=NetconfMethods(),
-                                 port=9931,
+                                 port=NC_PORT,
                                  host_key="tests/host_key",
                                  debug=SERVER_DEBUG)
-    del ns
-
-    import gc
-    gc.collect()
+    port = ns.port
 
     logger.info("Open sessions")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1", port=port, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
 
     logger.info("Close sessions")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1", port=port, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
 
     logger.info("Closeing")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", port=9931, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1", port=port, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
     logger.info("Reclosing")
     for session in sessions:
         session.close()

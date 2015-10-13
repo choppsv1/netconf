@@ -1,0 +1,10 @@
+#+TITLE: 
+#+AUTHOR: Christian E. Hopps
+#+EMAIL: chopps@gmail.com
+#+STARTUP: indent
+
+* Releases
+** Version 0.2.0
+  - Allow for yang defined RPCs by defining rpc_xxx methods
+  - Add RPCERR_TAG_xxx standard values.
+  - Add RPCSrvInvalidValue error.

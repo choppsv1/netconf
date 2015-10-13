@@ -33,3 +33,7 @@ def nsmap_add (prefix, namespace):
 def nsmap_update (nsdict):
     "Add a dicitonary of prefx namespace mappings to the modules mapping dictionary"
     NSMAP.update(nsdict)
+
+
+def qmap (key):
+    return "{" + NSMAP[key] + "}"

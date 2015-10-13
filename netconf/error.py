@@ -61,19 +61,38 @@ class RPCError (NetconfException):
     def get_error_severity (self):
         return self._get_error_val("error-severity")
 
-# error-tag
 # error-type
 RPCERR_TYPE_TRANSPORT = 0
 RPCERR_TYPE_RPC = 1
 RPCERR_TYPE_PROTOCOL = 2
-RPCERR_TYPE_APPLICATIOn = 3
+RPCERR_TYPE_APPLICATION = 3
 RPCERR_TYPE_ENUM = {
     RPCERR_TYPE_TRANSPORT: "transport",
     RPCERR_TYPE_RPC: "rpc",
     RPCERR_TYPE_PROTOCOL: "protocol",
-    RPCERR_TYPE_APPLICATIOn: "application"
+    RPCERR_TYPE_APPLICATION: "application"
 }
 
+# error-tag
+RPCERR_TAG_IN_USE                  = "in-use"
+RPCERR_TAG_INVALID_VALUE           = "invalid-value"
+RPCERR_TAG_TOO_BIG                 = "too-big"
+RPCERR_TAG_MISSING_ATTRIBUTE       = "missing-attribute"
+RPCERR_TAG_BAD_ATTRIBUTE           = "bad-attribute"
+RPCERR_TAG_UNKNOWN_ATTRIBUTE       = "unknown-attribute"
+RPCERR_TAG_MISSING_ELEMENT         = "missing-element"
+RPCERR_TAG_BAD_ELEMENT             = "bad-element"
+RPCERR_TAG_UNKNOWN_ELEMENT         = "unknown-element"
+RPCERR_TAG_UNKNOWN_NAMESPACE       = "unknown-namespace"
+RPCERR_TAG_ACCESS_DENIED           = "access-denied"
+RPCERR_TAG_LOCK_DENIED             = "lock-denied"
+RPCERR_TAG_RESOURCE_DENIED         = "resource-denied"
+RPCERR_TAG_ROLLBACK_FAILED         = "rollback-failed"
+RPCERR_TAG_DATA_EXISTS             = "data-exists"
+RPCERR_TAG_DATA_MISSING            = "data-missing"
+RPCERR_TAG_OPERATION_NOT_SUPPORTED = "operation-not-supported"
+RPCERR_TAG_OPERATION_FAILED        = "operation-failed"
+RPCERR_TAG_MALFORMED_MESSAGE       = "malformed-message"
 # error-app-tag
 # error-path # xpath associated with error.
 # error-message # human readable message describiing error
@@ -108,15 +127,19 @@ class RPCServerError (NetconfException):
     def get_reply_msg (self):
         return etree.tounicode(self.reply)
 
+class RPCSvrInvalidValue (RPCServerError):
+    def __init__ (self, origmsg):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_INVALID_VALUE)
+
 
 class RPCSvrErrBadMsg (RPCServerError):
     def __init__ (self, origmsg):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, "malformed-message")
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MALFORMED_MESSAGE)
 
 
 class RPCSvrErrNotImpl (RPCServerError):
     def __init__ (self, origmsg):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, "operation-not-supported")
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_NOT_SUPPORTED)
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 19 2015'

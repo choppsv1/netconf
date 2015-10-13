@@ -181,15 +181,8 @@ class SSHUserPassController (ssh.ServerInterface):
 
 class NetconfServerSession (base.NetconfSession):
     """Netconf Server-side Session Protocol"""
-    valid_rpc_methods = set(["close-session",
-                             "copy-config",
-                             "delete-config",
-                             "edit-config",
-                             "get",
-                             "get-config",
-                             "kill-session",
-                             "lock",
-                             "unlock", ])
+    handled_rpc_methods = set(["close-session",
+                               "kill-session",])
 
     def __init__ (self, pktstream, methods, session_id, debug):
         super(NetconfServerSession, self).__init__(pktstream, debug, session_id)
@@ -216,7 +209,10 @@ class NetconfServerSession (base.NetconfSession):
 
     def send_rpc_reply (self, rpc_reply, origmsg):
         reply = etree.Element("rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
-        reply.append(rpc_reply)
+        if isinstance(rpc_reply, etree.ElementBase):
+            reply.append(rpc_reply)
+        else:
+            reply.extend(rpc_reply)
         ucode = etree.tounicode(reply, pretty_print=True)
         if self.debug:
             logger.debug("%s: Sending RPC-Reply: %s", str(self), str(ucode))
@@ -224,6 +220,11 @@ class NetconfServerSession (base.NetconfSession):
 
     def send_rpc_reply_error (self, error):
         self.send_message(error.get_reply_msg())
+
+    def _rpc_not_implemented (self, unused_session, rpc, *params):
+        if self.debug:
+            logger.debug("%s: Not Impl msg-id: %s", str(self), str(msg_id))
+            raise RPCSvrErrNotImpl(rpc)
 
     def _handle_message (self, msg):
         """Handle a message, lock is already held"""
@@ -259,10 +260,6 @@ class NetconfServerSession (base.NetconfSession):
                 rpc_method = rpc_method[0]
 
                 rpcname = rpc_method.tag.replace("{{{}}}".format(NSMAP['nc']), "")
-                if rpcname not in self.valid_rpc_methods:
-                    if self.debug:
-                        logger.debug("%s: Not Impl msg-id: %s", str(self), str(msg_id))
-                    raise RPCSvrErrNotImpl(rpc)
 
                 if rpcname == "close-session":
                     # XXX should be RPC-unlocking if need be
@@ -279,13 +276,13 @@ class NetconfServerSession (base.NetconfSession):
                     self.close()
                     return
 
-                method_name = "rpc_" + rpcname.replace('-', '_')
-                if not hasattr(self.methods, method_name):
-                    raise RPCSvrErrNotImpl(rpc)
-
+                #------------------
                 # Call the method.
+                #------------------
+
                 try:
-                    method = getattr(self.methods, method_name)
+                    method_name = "rpc_" + rpcname.replace('-', '_')
+                    method = getattr(self.methods, method_name, self._rpc_not_implemented)
                     # logger.debug("%s: Calling method: %s", str(self), str(methodname))
                     reply = method(self, rpc, *rpc_method.getchildren())
                     self.send_rpc_reply(reply, rpc)
@@ -465,6 +462,10 @@ class NetconfSSHServer (object):
                                            args=[protosocket])
             self.thread.daemon = True
             self.thread.start()
+
+    def join (self):
+        "Wait on server to terminate"
+        self.thread.join()
 
     def allocate_session_id (self):
         with self.lock:

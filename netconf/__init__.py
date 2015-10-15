@@ -17,23 +17,28 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
+from lxml.etree import register_namespace
 
 MAXSSHBUF = 16 * 1024
-
-NSMAP = {
-    'nc': "urn:ietf:params:xml:ns:netconf:base:1.0"
-}
+NSMAP = { }
 
 
 def nsmap_add (prefix, namespace):
     "Add a prefix namespace mapping to the modules mapping dictionary"
     NSMAP[prefix] = namespace
+    register_namespace(prefix, namespace)
 
 
 def nsmap_update (nsdict):
     "Add a dicitonary of prefx namespace mappings to the modules mapping dictionary"
     NSMAP.update(nsdict)
+    for key, val in nsdict.items():
+        register_namespace(key, val)
 
 
 def qmap (key):
     return "{" + NSMAP[key] + "}"
+
+
+# Add base spec namespace
+nsmap_add('nc', "urn:ietf:params:xml:ns:netconf:base:1.0")

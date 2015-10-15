@@ -19,6 +19,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import logging
 import io
+import socket
 import threading
 import traceback
 from lxml import etree
@@ -81,11 +82,20 @@ class NetconfFramingTransport (NetconfPacketTransport):
         stream = self.stream
         if stream is not None:
             self.stream = None
-            logger.debug("Closing netconf socket stream %s", str(self.stream))
+            if self.debug:
+                logger.debug("Closing netconf socket stream %s", str(self.stream))
             stream.close()
 
     def is_active (self):
-        return self.stream.is_active()
+        try:
+            self.stream.is_active
+        except AttributeError:
+            transport = self.stream.get_transport()
+            if not transport:
+                return False
+            return transport.is_active()
+        else:
+            return self.stream.is_active()
 
     def receive_pdu (self, new_framing):
         assert self.stream is not None
@@ -126,6 +136,12 @@ class NetconfFramingTransport (NetconfPacketTransport):
             self.rbuffer += buf
             blen = len(self.rbuffer)
             if self.stream is None:
+                if self.debug:
+                    logger.debug("Channel closed: stream is None")
+                raise ChannelClosed(self)
+            if not buf:
+                if self.debug:
+                    logger.debug("Channel closed: Zero bytes read")
                 raise ChannelClosed(self)
 
         if self.rbuffer[:2] != b"\n#":
@@ -188,13 +204,13 @@ class NetconfSession (object):
         self.new_framing = False
         self.capabilities = set()
         self.reader_thread = None
-        self.msglock = threading.Lock()
+        self.msglock = threading.RLock()
         self.cv = threading.Condition(self.msglock)
         self.session_id = session_id
         self.session_open = False
 
     def __del__ (self):
-        if hasattr(self, "session_open"):
+        if hasattr(self, "session_open") and self.session_open:
             self.close()
 
     def is_active (self):
@@ -237,7 +253,6 @@ class NetconfSession (object):
                 # XXX the locking and dealing with the exit of this thread needs improvement
                 if self.reader_thread:
                     self.reader_thread.keep_running = False
-                self.reader_thread = None
 
         if self.pkt_stream is not None:
             if self.debug:
@@ -245,7 +260,9 @@ class NetconfSession (object):
 
             pkt_stream = self.pkt_stream
             self.pkt_stream = None
-            pkt_stream.close()
+
+            if pkt_stream:
+                pkt_stream.close()
 
     def _open_session (self, is_server):
         assert is_server or self.session_id is None
@@ -297,7 +314,7 @@ class NetconfSession (object):
             self.reader_thread.start()
 
             if self.debug:
-                logger.debug("%s: Opened", str(self))
+                logger.debug("%s: Opened version %s session.", str(self), "1.1" if self.new_framing else "1.0")
 
         except Exception:
             self.close()
@@ -311,15 +328,23 @@ class NetconfSession (object):
         if self.debug:
             logger.debug("Starting reader thread.")
         reader_thread = self.reader_thread
-        reader_thread.keep_running = True
         try:
-            while reader_thread.keep_running and self.pkt_stream:
+            while self.pkt_stream:
+                if not reader_thread.keep_running:
+                    # Notify client threads that we are exiting
+                    self.cv.notify_all()
+                    break
+
                 # XXX this hangs
                 # with self.cv:
+
                 assert self.pkt_stream is not None
                 msg = self.receive_message()
                 if not reader_thread.keep_running:
+                    # Notify client threads that we are exiting
+                    self.cv.notify_all()
                     break
+
                 # XXX might we get None for message here if we got an EOF?
 
                 with self.cv:
@@ -327,6 +352,7 @@ class NetconfSession (object):
                     if True:
                         self._handle_message(msg)
                     self.cv.notify_all()
+
             if self.debug:
                 logger.debug("Exiting reader thread")
         except AttributeError as error:
@@ -341,27 +367,30 @@ class NetconfSession (object):
                 logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
                              str(error),
                              traceback.format_exc())
+            self.close()
         except ChannelClosed as error:
             # Should we close the session cleanly or just disconnect?
-            if self.debug:
-                logger.error("%s: Session channel closed [session_open == %s]: %s: %s",
-                            selftr(self),
-                             str(self.session_open),
-                             str(error),
-                             traceback.format_exc())
-            else:
-                logger.error("%s: Session channel closed [session_open == %s]: %s",
+            # if self.debug:
+            #     logger.debug("%s: Session channel closed [session_open == %s]: %s: %s",
+            #                  str(self),
+            #                  str(self.session_open),
+            #                  str(error),
+            #                  traceback.format_exc())
+            # else:
+            logger.debug("%s: Session channel closed [session_open == %s]: %s",
                             str(self),
                             str(self.session_open),
                             str(error))
+            if self.session_open:
+                self.close()
         except SessionError as error:
             # Should we close the session cleanly or just disconnect?
             logger.error("%s Session error [closing session]: %s", str(self), str(error))
-
-            # If we are a server we should be sending error messages
             self.close()
-            with self.cv:
-                self.cv.notify_all()
+        except socket.error as error:
+            if self.debug:
+                logger.debug("Socket error in reader thread [exiting]: %s", str(error))
+            self.close()
         except Exception as error:
             if reader_thread.keep_running:
                 logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
@@ -370,10 +399,11 @@ class NetconfSession (object):
                 self.close()
             else:
                 # XXX might want to catch errors due to disconnect and not re-raise
-                logger.error("Exception in reader thread [exiting]: %s: %s", str(error), traceback.format_exc())
+                logger.debug("Exception in reader thread [exiting]: %s: %s", str(error), traceback.format_exc())
+        finally:
+            # If we are exiting the read thread we close the session.
             with self.cv:
                 self.cv.notify_all()
-
 __author__ = 'Christian Hopps'
 __date__ = 'December 23 2014'
 __version__ = '1.0'

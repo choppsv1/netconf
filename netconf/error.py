@@ -127,19 +127,41 @@ class RPCServerError (NetconfException):
     def get_reply_msg (self):
         return etree.tounicode(self.reply)
 
+
+class RPCSvrErrBadMsg (RPCServerError):
+    """If the server raises this exception the and netconf 1.0 is in use, the session will be closed"""
+    def __init__ (self, origmsg):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MALFORMED_MESSAGE)
+
+
 class RPCSvrInvalidValue (RPCServerError):
     def __init__ (self, origmsg):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_INVALID_VALUE)
 
 
-class RPCSvrErrBadMsg (RPCServerError):
-    def __init__ (self, origmsg):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MALFORMED_MESSAGE)
+class RPCSvrMissingElement (RPCServerError):
+    def __init__ (self, origmsg, element):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MISSING_ELEMENT, info=element.tag)
+
+
+class RPCSvrBadElement (RPCServerError):
+    def __init__ (self, origmsg, element):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_BAD_ELEMENT, info=element.tag)
+
+
+class RPCSvrUnknownElement (RPCServerError):
+    def __init__ (self, origmsg, element):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_UNKNOWN_ELEMENT, info=element.tag)
 
 
 class RPCSvrErrNotImpl (RPCServerError):
     def __init__ (self, origmsg):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_NOT_SUPPORTED)
+
+
+class RPCSvrException (RPCServerError):
+    def __init__ (self, origmsg, exception):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_FAILED, info=str(exception))
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 19 2015'

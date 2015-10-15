@@ -21,13 +21,15 @@ import traceback
 import logging
 import io
 import os
+import select
 import socket
 import threading
 import paramiko as ssh
 from lxml import etree
 from netconf import base
+import netconf.error as ncerror
 from netconf import NSMAP
-from netconf.error import RPCServerError, RPCSvrErrBadMsg, RPCSvrErrNotImpl, SessionError
+from netconf import util
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +184,7 @@ class SSHUserPassController (ssh.ServerInterface):
 class NetconfServerSession (base.NetconfSession):
     """Netconf Server-side Session Protocol"""
     handled_rpc_methods = set(["close-session",
-                               "kill-session",])
+                               "kill-session"])
 
     def __init__ (self, pktstream, methods, session_id, debug):
         super(NetconfServerSession, self).__init__(pktstream, debug, session_id)
@@ -209,9 +211,10 @@ class NetconfServerSession (base.NetconfSession):
 
     def send_rpc_reply (self, rpc_reply, origmsg):
         reply = etree.Element("rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
-        if isinstance(rpc_reply, etree.ElementBase):
+        try:
+            rpc_reply.getchildren                           # pylint: disable=W0104
             reply.append(rpc_reply)
-        else:
+        except AttributeError:
             reply.extend(rpc_reply)
         ucode = etree.tounicode(reply, pretty_print=True)
         if self.debug:
@@ -221,26 +224,30 @@ class NetconfServerSession (base.NetconfSession):
     def send_rpc_reply_error (self, error):
         self.send_message(error.get_reply_msg())
 
-    def _rpc_not_implemented (self, unused_session, rpc, *params):
+    def _rpc_not_implemented (self, unused_session, rpc, *unused_params):
         if self.debug:
+            msg_id = int(rpc.get('message-id'))
             logger.debug("%s: Not Impl msg-id: %s", str(self), str(msg_id))
-            raise RPCSvrErrNotImpl(rpc)
+        raise ncerror.RPCSvrErrNotImpl(rpc)
 
     def _handle_message (self, msg):
         """Handle a message, lock is already held"""
         if not self.session_open:
             return
 
+        # Any error with XML encoding here is going to cause a session close
+        # Technically we should be able to return malformed message I think.
         try:
             tree = etree.parse(io.BytesIO(msg.encode('utf-8')))
             if not tree:
-                raise SessionError(msg, "Invalid XML from client.")
+                raise ncerror.SessionError(msg, "Invalid XML from client.")
         except etree.XMLSyntaxError:
-            raise SessionError(msg, "Invalid XML from client.")
+            logger.warning("Closing session due to malformed message")
+            raise ncerror.SessionError(msg, "Invalid XML from client.")
 
         rpcs = tree.xpath("/nc:rpc", namespaces=NSMAP)
         if not rpcs:
-            raise SessionError(msg, "No rpc found")
+            raise ncerror.SessionError(msg, "No rpc found")
 
         for rpc in rpcs:
             try:
@@ -248,7 +255,7 @@ class NetconfServerSession (base.NetconfSession):
                 if self.debug:
                     logger.debug("%s: Received rpc message-id: %s", str(self), str(msg_id))
             except (TypeError, ValueError):
-                raise SessionError(msg, "No valid message-id attribute found")
+                raise ncerror.SessionError(msg, "No valid message-id attribute found")
 
             try:
                 # Get the first child of rpc as the method name
@@ -256,10 +263,12 @@ class NetconfServerSession (base.NetconfSession):
                 if len(rpc_method) != 1:
                     if self.debug:
                         logger.debug("%s: Bad Msg: msg-id: %s", str(self), str(msg_id))
-                    raise RPCSvrErrBadMsg(rpc)
+                    raise ncerror.RPCSvrErrBadMsg(rpc)
                 rpc_method = rpc_method[0]
 
                 rpcname = rpc_method.tag.replace("{{{}}}".format(NSMAP['nc']), "")
+                params = rpc_method.getchildren()
+                paramslen = len(params)
 
                 if rpcname == "close-session":
                     # XXX should be RPC-unlocking if need be
@@ -267,6 +276,7 @@ class NetconfServerSession (base.NetconfSession):
                         logger.debug("%s: Received close-session msg-id: %s", str(self), str(msg_id))
                     self.send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
+                    # XXX should we also call the user method if it exists?
                     return
                 elif rpcname == "kill-session":
                     # XXX we are supposed to cleanly abort anything underway
@@ -274,7 +284,35 @@ class NetconfServerSession (base.NetconfSession):
                         logger.debug("%s: Received kill-session msg-id: %s", str(self), str(msg_id))
                     self.send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
+                    # XXX should we also call the user method if it exists?
                     return
+                elif rpcname == "get":
+                    # Validate GET parameters
+
+                    if paramslen > 1:
+                        # XXX need to specify all elements not known
+                        raise ncerror.RPCSvrErrBadMsg(rpc)
+                    if params and not util.filter_tag_match(params[0], "nc:filter"):
+                        raise ncerror.RPCSvrUnknownElement(rpc, params[0])
+                    if not params:
+                        params = [ None ]
+                elif rpcname == "get-config":
+                    # Validate GET-CONFIG parameters
+
+                    # XXX verify that the source parameter is present
+                    if paramslen > 2:
+                        # XXX need to specify all elements not known
+                        raise ncerror.RPCSvrErrBadMsg(rpc)
+                    source_param = rpc_method.find("nc:source", namespaces=NSMAP)
+                    if source_param is None:
+                        raise ncerror.RPCSvrMissingElement(rpc, util.elm("nc:source"))
+                    filter_param = None
+                    if paramslen == 2:
+                        filter_param = rpc_method.find("nc:filter", namespaces=NSMAP)
+                        if filter_param is None:
+                            unknown_elm = params[0] if params[0] != source_param else params[1]
+                            raise ncerror.RPCSvrUnknownElement(rpc, unknown_elm)
+                    params = [ source_param, filter_param ]
 
                 #------------------
                 # Call the method.
@@ -284,18 +322,22 @@ class NetconfServerSession (base.NetconfSession):
                     method_name = "rpc_" + rpcname.replace('-', '_')
                     method = getattr(self.methods, method_name, self._rpc_not_implemented)
                     # logger.debug("%s: Calling method: %s", str(self), str(methodname))
-                    reply = method(self, rpc, *rpc_method.getchildren())
+                    reply = method(self, rpc, *params)
                     self.send_rpc_reply(reply, rpc)
                 except NotImplementedError:
-                    raise RPCSvrErrNotImpl(rpc)
-            except RPCSvrErrBadMsg as msgerr:
+                    raise ncerror.RPCSvrErrNotImpl(rpc)
+            except ncerror.RPCSvrErrBadMsg as msgerr:
                 if self.new_framing:
                     self.send_message(msgerr.get_reply_msg())
                 else:
                     # If we are 1.0 we have to simply close the connection
                     # as we are not allowed to send this error
-                    raise SessionError(msg, "Malformed message")
-            except RPCServerError as error:
+                    logger.warning("Closing 1.0 session due to malformed message")
+                    raise ncerror.SessionError(msg, "Malformed message")
+            except ncerror.RPCServerError as error:
+                self.send_message(error.get_reply_msg())
+            except Exception as exception:
+                error = ncerror.RPCSvrException(rpc, exception)
                 self.send_message(error.get_reply_msg())
 
 
@@ -331,11 +373,22 @@ class NetconfSSHServerSocket (object):
     def __str__ (self):
         return "NetconfSSHServerSocket(client: {})".format(self.client_addr)
 
+    def _shutdown (self):
+        # XXX we need some sort of locking here...
+        if self.ssh:
+            self.ssh.close()
+            self.ssh = None
+
+        if self.client_socket:
+            self.client_socket.close()
+            self.client_socket = None
+
     def _accept_chan_thread (self):
         try:
             while True:
                 if self.debug:
                     logger.debug("%s: Accepting channel connections", str(self))
+
                 channel = self.ssh.accept(timeout=None)
                 if channel is None:
                     if not self.ssh.is_active():
@@ -363,31 +416,48 @@ class NetconfSSHServerSocket (object):
 
 
 class NetconfMethods (object):
-    """This is an abstract class that is used to actually implement the server functionality"""
-    def nc_append_capabilities (self, unused_capabilities):
+    """This is an abstract class that is used to document the server methods functionality
+
+    The server return not-implemented if the method is not found in the methods object,
+    so feel free to use duck-typing here (i.e., no need to inherit)
+    """
+
+    def nc_append_capabilities (self, capabilities):        # pylint: disable=W0613
         """The server should append any capabilities it supports to capabilities"""
         return
 
+    def rpc_get (self, session, rpc, filter_or_none):       # pylint: disable=W0613
+        """Passed the filter element or None if not present"""
+        raise ncerror.RPCSvrErrNotImpl(rpc)
+
+    def rpc_get_config (self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
+        """Passed the source element"""
+        raise ncerror.RPCSvrErrNotImpl(rpc)
+
+    #---------------------------------------------------------------------------
+    # These definitions will change to include required parameters like get and
+    # get-config
+    #---------------------------------------------------------------------------
+
+    # XXX The API WILL CHANGE consider unfinished
     def rpc_copy_config (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
+        raise ncerror.RPCSvrErrNotImpl(rpc)
 
+    # XXX The API WILL CHANGE consider unfinished
     def rpc_delete_config (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
+        raise ncerror.RPCSvrErrNotImpl(rpc)
 
+    # XXX The API WILL CHANGE consider unfinished
     def rpc_edit_config (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
+        raise ncerror.RPCSvrErrNotImpl(rpc)
 
-    def rpc_get (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
-
-    def rpc_get_config (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
-
+    # XXX The API WILL CHANGE consider unfinished
     def rpc_lock (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
+        raise ncerror.RPCSvrErrNotImpl(rpc)
 
+    # XXX The API WILL CHANGE consider unfinished
     def rpc_unlock (self, unused_session, rpc, *unused_params):
-        raise RPCSvrErrNotImpl(rpc)
+        raise ncerror.RPCSvrErrNotImpl(rpc)
 
 
 class NetconfSSHServer (object):
@@ -452,6 +522,9 @@ class NetconfSSHServer (object):
                 logger.debug("Server listening on proto %s port %s", str(pname), str(port))
             protosocket.listen(100)
 
+            # Create a socket to cause closure.
+            self.close_wsocket, self.close_rsocket = socket.socketpair(socket.AF_UNIX)
+
             self.lock = threading.Lock()
             self.session_id = 0
             self.sockets = []
@@ -462,6 +535,10 @@ class NetconfSSHServer (object):
                                            args=[protosocket])
             self.thread.daemon = True
             self.thread.start()
+
+    def close (self):
+        with self.lock:
+            self.close_wsocket.send(b"!")
 
     def join (self):
         "Wait on server to terminate"
@@ -479,23 +556,43 @@ class NetconfSSHServer (object):
 
     def _accept_socket_thread (self, proto_sock):
         """Call from within a thread to accept connections."""
+
+        # XXX should probably select here so we can cause closure
         while True:
             if self.debug:
                 logger.debug("%s: Accepting connections", str(self))
-            client, addr = proto_sock.accept()
-            if self.debug:
-                logger.debug("%s: Client accepted: %s: %s", str(self), str(client), str(addr))
-            try:
-                with self.lock:
-                    sock = NetconfSSHServerSocket(self.server_ctl,
-                                                  self.server_methods,
-                                                  self,
-                                                  client,
-                                                  addr,
-                                                  self.debug)
-                    self.sockets.append(sock)
-            except ssh.AuthenticationException:
-                pass
+
+            rfds, unused, unused = select.select([proto_sock, self.close_rsocket], [], [])
+            if self.close_rsocket in rfds:
+                if self.debug:
+                    logger.debug("%s: Got close notification closing down server", str(self))
+
+                # with self.lock:
+                #     sockets = list(self.sockets)
+                sockets = list(self.sockets)
+                for sock in sockets:
+                    if sock in self.sockets:
+                        sock._shutdown()
+
+                # Not until we have a real shutdown
+                # assert not self.sockets
+                return
+
+            if proto_sock in rfds:
+                client, addr = proto_sock.accept()
+                if self.debug:
+                    logger.debug("%s: Client accepted: %s: %s", str(self), str(client), str(addr))
+                try:
+                    with self.lock:
+                        sock = NetconfSSHServerSocket(self.server_ctl,
+                                                      self.server_methods,
+                                                      self,
+                                                      client,
+                                                      addr,
+                                                      self.debug)
+                        self.sockets.append(sock)
+                except ssh.AuthenticationException:
+                    pass
 
     def __str__ (self):
         return "NetconfSSHServer(port={})".format(self.port)

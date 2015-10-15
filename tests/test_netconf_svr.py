@@ -28,7 +28,7 @@ except ImportError:
 
 from netconf import client
 from netconf import server
-from netconf.error import RPCError
+from netconf.error import RPCError, SessionError
 
 logger = logging.getLogger(__name__)
 SERVER_DEBUG = True
@@ -41,11 +41,15 @@ class NetconfMethods (server.NetconfMethods):
     def rpc_get (self, unused_session, rpc, *unused_params):
         return etree.Element("ok")
 
+    def rpc_get_config (self, unused_session, rpc, *unused_params):
+        return etree.Element("ok")
+
 
 def setup_module (unused_module):
     if setup_module.init:
         logger.error("XXX Called setup_module multiple times")
     else:
+        logging.basicConfig(level=logging.DEBUG)
         global ncserver
         server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
         ncserver = server.NetconfSSHServer(server_ctl=server_ctl,
@@ -59,14 +63,25 @@ setup_module.init = False
 
 def cleanup_module (unused_module):
     if setup_module.init:
-        logger.error("Done with server")
+        logger.info("Deleting server")
+
+        # Delete the server so that we don't end up with a bunch of logging going on on exit.
+        global ncserver
+        s = ncserver
+        ncserver = None
+        del s
+
+        # now let's force garbage collection to try and get rid of other objects.
+        logger.info("Garbage collecting")
+        import gc
+        gc.collect()
 
 
 def test_not_supported ():
     session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
     assert session
 
-    query = "<get-config><barfoo/></get-config>"
+    query = "<foobar/>"
     try:
         rval = session.send_rpc(query)
     except RPCError as error:
@@ -86,7 +101,26 @@ def test_malformed ():
     except RPCError as error:
         assert error.get_error_tag() == "malformed-message"
     else:
-        logger.error("Unexpected success: {}", rval)
+        logger.error("Unexpected success: %s", str(rval))
+        assert False
+
+
+# XXX this hangs the server!
+def test_malformed_2 ():
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port, debug=True)
+    assert session
+
+    query = "</foobar>"
+    try:
+        rval = session.send_rpc(query)
+    except RPCError as error:
+        assert error.get_error_tag() == "malformed-message"
+        session.close()
+    except SessionError as error:
+        # If the session closes that's OK too.
+        pass
+    else:
+        logger.error("Unexpected success: %s", str(rval))
         assert False
 
 
@@ -94,10 +128,62 @@ def test_get ():
     session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
     assert session
 
-    query = "<get><status/></get>"
+    query = "<get><filter><status/></filter></get>"
     rval = session.send_rpc(query)
     assert rval
     # logger.debug("Get: {}", rval)
+    session.close()
+
+
+def test_get_config ():
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
+    assert session
+
+    query = "<get-config><source><running/></source></get-config>"
+    rval = session.send_rpc(query)
+    assert rval
+    # logger.debug("Get: {}", rval)
+    session.close()
+
+
+def test_get_config_with_filter ():
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
+    assert session
+
+    query = "<get-config><source><running/></source><filter><foobar/></filter></get-config>"
+    rval = session.send_rpc(query)
+    assert rval
+    session.close()
+
+
+def test_get_config_missing_source ():
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
+    assert session
+
+    query = "<get-config></get-config>"
+    try:
+        rval = session.send_rpc(query)
+    except RPCError as error:
+        assert error.get_error_tag() == "missing-element"
+    else:
+        logger.error("Unexpected success: %s", str(rval))
+        assert False
+    session.close()
+
+
+def test_get_config_with_non_filter ():
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
+    assert session
+
+    query = """<get-config><source><running/></source><foobar/></get-config>"""
+    try:
+        rval = session.send_rpc(query)
+    except RPCError as error:
+        assert error.get_error_tag() == "unknown-element"
+    else:
+        logger.error("Unexpected success: %s", str(rval))
+        assert False
+    session.close()
 
 
 def test_close ():
@@ -141,6 +227,16 @@ def test_multi_open ():
     logger.info("Reclosing")
     for session in sessions:
         session.close()
+
+    # Close down the server and join it to make sure it's closed
+    logger.info("Closing server")
+    ns.close()
+    logger.info("Joining server")
+    ns.join()
+
+    # Delete the server so that we don't end up with a bunch of logging going on on exit.
+    del ns
+    del server_ctl
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 17 2015'

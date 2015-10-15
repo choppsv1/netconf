@@ -19,6 +19,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import logging
 import io
+import socket
 import sshutil.conn
 from lxml import etree
 from netconf import NSMAP
@@ -31,9 +32,9 @@ logger = logging.getLogger(__name__)
 class NetconfClientSession (NetconfSession):
     """Netconf Protocol"""
     def __init__ (self, stream, debug=False):
-        self.debug = debug
         super(NetconfClientSession, self).__init__(stream, debug, None)
         self.message_id = 0
+        self.closing = False
         self.rpc_out = {}
 
         super(NetconfClientSession, self)._open_session(False)
@@ -46,9 +47,13 @@ class NetconfClientSession (NetconfSession):
             logger.debug("%s: Closing session.", str(self))
 
         reply = None
-        if self.session_id is not None:
-            msg_id = self._send_rpc_async("<close-session/>")
-            reply = self.wait_reply(msg_id)
+        try:
+            if self.session_id is not None and self.is_active():
+                self._send_rpc_async("<close-session/>")
+                # Don't wait for a reply the session is closed!
+        except socket.error:
+            if self.debug:
+                logger.debug("Got socket error sending close-session request, ignoring")
 
         super(NetconfClientSession, self).close()
 
@@ -85,6 +90,9 @@ class NetconfClientSession (NetconfSession):
         return self.rpc_out[msg_id] is not None
 
     def is_reply_ready (self, msg_id):
+        """Check whether reply is ready (or session closed)"""
+        if not self.is_active():
+            raise SessionError("Session closed while checking for reply")
         with self.cv:
             return self.is_reply_ready_locked(msg_id)
 
@@ -92,8 +100,12 @@ class NetconfClientSession (NetconfSession):
         assert msg_id in self.rpc_out
 
         self.cv.acquire()
-        while self.rpc_out[msg_id] is None:
+        # XXX need to make sure the channel doesn't close
+        while self.rpc_out[msg_id] is None and self.is_active():
             self.cv.wait()
+
+        if not self.is_active():
+            raise SessionError("Session closed while waiting for reply")
 
         tree, reply, msg = self.rpc_out[msg_id]
         del self.rpc_out[msg_id]

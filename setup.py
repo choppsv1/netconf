@@ -19,6 +19,7 @@ import os
 from setuptools import setup
 
 required = [
+    "backports.socketpair>=3.5.0",
     "lxml>=3.1.0",
     "paramiko>=1.10.1",
     "sshutil>=0.9.0",

@@ -23,6 +23,7 @@ import io
 import os
 import select
 import socket
+import backports.socketpair
 import threading
 import paramiko as ssh
 from lxml import etree
@@ -523,7 +524,7 @@ class NetconfSSHServer (object):
             protosocket.listen(100)
 
             # Create a socket to cause closure.
-            self.close_wsocket, self.close_rsocket = socket.socketpair(socket.AF_UNIX)
+            self.close_wsocket, self.close_rsocket = socket.socketpair()
 
             self.lock = threading.Lock()
             self.session_id = 0

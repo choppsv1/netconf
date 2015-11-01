@@ -15,15 +15,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 import os
 from setuptools import setup
 
 required = [
-    "backports.socketpair>=3.5.0",
     "lxml>=3.1.0",
     "paramiko>=1.10.1",
     "sshutil>=0.9.0",
 ]
+if sys.platform == 'win32' and sys.version_info < (3, 5):
+    required.append("backports.socketpair>=3.5.0.2")
 
 
 def read(fname):

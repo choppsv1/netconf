@@ -17,13 +17,15 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
+import sys
 import traceback
 import logging
 import io
 import os
 import select
 import socket
-import backports.socketpair
+if sys.platform == 'win32' and sys.version_info < (3, 5):
+    import backports.socketpair
 import threading
 import paramiko as ssh
 from lxml import etree

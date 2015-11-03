@@ -17,12 +17,15 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
+import sys
 import traceback
 import logging
 import io
 import os
 import select
 import socket
+if sys.platform == 'win32' and sys.version_info < (3, 5):
+    import backports.socketpair
 import threading
 import paramiko as ssh
 from lxml import etree
@@ -523,7 +526,7 @@ class NetconfSSHServer (object):
             protosocket.listen(100)
 
             # Create a socket to cause closure.
-            self.close_wsocket, self.close_rsocket = socket.socketpair(socket.AF_UNIX)
+            self.close_wsocket, self.close_rsocket = socket.socketpair()
 
             self.lock = threading.Lock()
             self.session_id = 0

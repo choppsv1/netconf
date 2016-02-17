@@ -229,8 +229,8 @@ class NetconfServerSession (base.NetconfSession):
 
     def _rpc_not_implemented (self, unused_session, rpc, *unused_params):
         if self.debug:
-            msg_id = int(rpc.get('message-id'))
-            logger.debug("%s: Not Impl msg-id: %s", str(self), str(msg_id))
+            msg_id = rpc.get('message-id')
+            logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
     def _handle_message (self, msg):
@@ -254,9 +254,9 @@ class NetconfServerSession (base.NetconfSession):
 
         for rpc in rpcs:
             try:
-                msg_id = int(rpc.get('message-id'))
+                msg_id = rpc.get('message-id')
                 if self.debug:
-                    logger.debug("%s: Received rpc message-id: %s", str(self), str(msg_id))
+                    logger.debug("%s: Received rpc message-id: %s", str(self), msg_id)
             except (TypeError, ValueError):
                 raise ncerror.SessionError(msg, "No valid message-id attribute found")
 
@@ -265,7 +265,7 @@ class NetconfServerSession (base.NetconfSession):
                 rpc_method = rpc.getchildren()
                 if len(rpc_method) != 1:
                     if self.debug:
-                        logger.debug("%s: Bad Msg: msg-id: %s", str(self), str(msg_id))
+                        logger.debug("%s: Bad Msg: msg-id: %s", str(self), msg_id)
                     raise ncerror.RPCSvrErrBadMsg(rpc)
                 rpc_method = rpc_method[0]
 
@@ -276,7 +276,7 @@ class NetconfServerSession (base.NetconfSession):
                 if rpcname == "close-session":
                     # XXX should be RPC-unlocking if need be
                     if self.debug:
-                        logger.debug("%s: Received close-session msg-id: %s", str(self), str(msg_id))
+                        logger.debug("%s: Received close-session msg-id: %s", str(self), msg_id)
                     self.send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
                     # XXX should we also call the user method if it exists?
@@ -284,7 +284,7 @@ class NetconfServerSession (base.NetconfSession):
                 elif rpcname == "kill-session":
                     # XXX we are supposed to cleanly abort anything underway
                     if self.debug:
-                        logger.debug("%s: Received kill-session msg-id: %s", str(self), str(msg_id))
+                        logger.debug("%s: Received kill-session msg-id: %s", str(self), msg_id)
                     self.send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
                     # XXX should we also call the user method if it exists?

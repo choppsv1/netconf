@@ -32,6 +32,7 @@ from lxml import etree
 from netconf import base
 import netconf.error as ncerror
 from netconf import NSMAP
+from netconf import qmap
 from netconf import util
 
 logger = logging.getLogger(__name__)
@@ -213,7 +214,7 @@ class NetconfServerSession (base.NetconfSession):
             logger.debug("%s: Closed.", str(self))
 
     def send_rpc_reply (self, rpc_reply, origmsg):
-        reply = etree.Element("rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
+        reply = etree.Element(qmap('nc') + "rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
         try:
             rpc_reply.getchildren                           # pylint: disable=W0104
             reply.append(rpc_reply)
@@ -269,7 +270,7 @@ class NetconfServerSession (base.NetconfSession):
                     raise ncerror.RPCSvrErrBadMsg(rpc)
                 rpc_method = rpc_method[0]
 
-                rpcname = rpc_method.tag.replace("{{{}}}".format(NSMAP['nc']), "")
+                rpcname = rpc_method.tag.replace(qmap('nc'), "")
                 params = rpc_method.getchildren()
                 paramslen = len(params)
 

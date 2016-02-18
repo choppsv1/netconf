@@ -44,6 +44,9 @@ class NetconfMethods (server.NetconfMethods):
     def rpc_get_config (self, unused_session, rpc, *unused_params):
         return etree.Element("ok")
 
+    def rpc_namespaced (self, unused_session, rpc, *unused_params):
+        return etree.Element("ok")
+
 
 def setup_module (unused_module):
     if setup_module.init:
@@ -89,6 +92,19 @@ def test_not_supported ():
     else:
         logger.error("Unexpected success: {}", rval)
         assert False
+
+
+def test_namespaced_rpc ():
+    """TEST: Checked that namespaced RPCs work."""
+    session = client.NetconfSSHSession("127.0.0.1", port=ncserver.port)
+    assert session
+
+    query = '<namespaced xmlns="some:namespace:1.0"></namespaced>'
+    rval = session.send_rpc(query)
+    rval = session.send_rpc(query)
+    assert rval
+    # logger.debug("Get: {}", rval)
+    session.close()
 
 
 def test_malformed ():

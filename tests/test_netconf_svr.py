@@ -88,6 +88,7 @@ def test_not_supported ():
     try:
         rval = session.send_rpc(query)
     except RPCError as error:
+        logger.info("Error tag {}".format(error.get_error_tag()))
         assert error.get_error_tag() == "operation-not-supported"
     else:
         logger.error("Unexpected success: {}", rval)

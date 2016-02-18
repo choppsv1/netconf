@@ -230,6 +230,7 @@ class NetconfServerSession (base.NetconfSession):
     def _rpc_not_implemented (self, unused_session, rpc, *unused_params):
         if self.debug:
             msg_id = int(rpc.get('message-id'))
+            logger.debug("%s: Not Impl msg-id: %s", str(self), str(msg_id))
             logger.debug("%s: Not Impl msg-id: %s, rpc: %s", str(self), str(msg_id), rpc.iterchildren().next().tag)
         raise ncerror.RPCSvrErrNotImpl(rpc)
 

@@ -323,6 +323,10 @@ class NetconfServerSession (base.NetconfSession):
                 #------------------
 
                 try:
+                    # Handle any namespaces or prefixes in the tag, other than
+                    # "nc" which was removed above. Of course, this does not handle
+                    # namespace collisions, but that seems reasonable for now.
+                    rpcname = rpcname.rpartition("}")[-1]
                     method_name = "rpc_" + rpcname.replace('-', '_')
                     method = getattr(self.methods, method_name, self._rpc_not_implemented)
                     # logger.debug("%s: Calling method: %s", str(self), str(methodname))

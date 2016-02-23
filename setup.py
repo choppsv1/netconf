@@ -32,7 +32,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup (name='netconf',
-       version='0.3.1',
+       version='0.4.0',
        description='Netconf Client/Server Library',
        long_description=read("README.rst"),
        author='Christian E. Hopps',

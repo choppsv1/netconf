@@ -159,8 +159,7 @@ class NetconfClientSession (NetconfSession):
 
 
 class NetconfSSHSession (NetconfClientSession):
-    # XXX we really want password to be None here.
-    def __init__ (self, host, port=830, username=None, password="admin", debug=False):
+    def __init__ (self, host, port=830, username=None, password=None, debug=False):
         if username is None:
             import getpass
             username = getpass.getuser()

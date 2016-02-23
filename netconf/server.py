@@ -32,6 +32,7 @@ from lxml import etree
 from netconf import base
 import netconf.error as ncerror
 from netconf import NSMAP
+from netconf import qmap
 from netconf import util
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,7 @@ class SSHUserPassController (ssh.ServerInterface):
         self.event = threading.Event()
 
     def get_allowed_auths (self, unused_username):
-        return ["passsword"]
+        return ["password"]
 
     def check_auth_none (self, unused_username):
         return ssh.AUTH_FAILED
@@ -213,7 +214,7 @@ class NetconfServerSession (base.NetconfSession):
             logger.debug("%s: Closed.", str(self))
 
     def send_rpc_reply (self, rpc_reply, origmsg):
-        reply = etree.Element("rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
+        reply = etree.Element(qmap('nc') + "rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
         try:
             rpc_reply.getchildren                           # pylint: disable=W0104
             reply.append(rpc_reply)
@@ -229,8 +230,8 @@ class NetconfServerSession (base.NetconfSession):
 
     def _rpc_not_implemented (self, unused_session, rpc, *unused_params):
         if self.debug:
-            msg_id = int(rpc.get('message-id'))
-            logger.debug("%s: Not Impl msg-id: %s", str(self), str(msg_id))
+            msg_id = rpc.get('message-id')
+            logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
     def _handle_message (self, msg):
@@ -254,9 +255,9 @@ class NetconfServerSession (base.NetconfSession):
 
         for rpc in rpcs:
             try:
-                msg_id = int(rpc.get('message-id'))
+                msg_id = rpc.get('message-id')
                 if self.debug:
-                    logger.debug("%s: Received rpc message-id: %s", str(self), str(msg_id))
+                    logger.debug("%s: Received rpc message-id: %s", str(self), msg_id)
             except (TypeError, ValueError):
                 raise ncerror.SessionError(msg, "No valid message-id attribute found")
 
@@ -265,18 +266,18 @@ class NetconfServerSession (base.NetconfSession):
                 rpc_method = rpc.getchildren()
                 if len(rpc_method) != 1:
                     if self.debug:
-                        logger.debug("%s: Bad Msg: msg-id: %s", str(self), str(msg_id))
+                        logger.debug("%s: Bad Msg: msg-id: %s", str(self), msg_id)
                     raise ncerror.RPCSvrErrBadMsg(rpc)
                 rpc_method = rpc_method[0]
 
-                rpcname = rpc_method.tag.replace("{{{}}}".format(NSMAP['nc']), "")
+                rpcname = rpc_method.tag.replace(qmap('nc'), "")
                 params = rpc_method.getchildren()
                 paramslen = len(params)
 
                 if rpcname == "close-session":
                     # XXX should be RPC-unlocking if need be
                     if self.debug:
-                        logger.debug("%s: Received close-session msg-id: %s", str(self), str(msg_id))
+                        logger.debug("%s: Received close-session msg-id: %s", str(self), msg_id)
                     self.send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
                     # XXX should we also call the user method if it exists?
@@ -284,7 +285,7 @@ class NetconfServerSession (base.NetconfSession):
                 elif rpcname == "kill-session":
                     # XXX we are supposed to cleanly abort anything underway
                     if self.debug:
-                        logger.debug("%s: Received kill-session msg-id: %s", str(self), str(msg_id))
+                        logger.debug("%s: Received kill-session msg-id: %s", str(self), msg_id)
                     self.send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
                     # XXX should we also call the user method if it exists?
@@ -322,6 +323,10 @@ class NetconfServerSession (base.NetconfSession):
                 #------------------
 
                 try:
+                    # Handle any namespaces or prefixes in the tag, other than
+                    # "nc" which was removed above. Of course, this does not handle
+                    # namespace collisions, but that seems reasonable for now.
+                    rpcname = rpcname.rpartition("}")[-1]
                     method_name = "rpc_" + rpcname.replace('-', '_')
                     method = getattr(self.methods, method_name, self._rpc_not_implemented)
                     # logger.debug("%s: Calling method: %s", str(self), str(methodname))

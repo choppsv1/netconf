@@ -64,6 +64,7 @@ def test_query ():
     """
     logger.info("Connecting to 127.0.0.1 port %d", nc_server.port)
     session = client.NetconfSSHSession("127.0.0.1",
+                                       username=getpass.getuser(),
                                        password="admin",
                                        port=nc_server.port,
                                        debug=NC_DEBUG)
@@ -72,6 +73,7 @@ def test_query ():
 
 def test_bad_query ():
     session = client.NetconfSSHSession("127.0.0.1",
+                                       username=getpass.getuser(),
                                        password="admin",
                                        port=nc_server.port,
                                        debug=NC_DEBUG)

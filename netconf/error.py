@@ -61,6 +61,8 @@ class RPCError (NetconfException):
     def get_error_severity (self):
         return self._get_error_val("error-severity")
 
+# RFC6241
+
 # error-type
 RPCERR_TYPE_TRANSPORT = 0
 RPCERR_TYPE_RPC = 1
@@ -135,33 +137,38 @@ class RPCSvrErrBadMsg (RPCServerError):
 
 
 class RPCSvrInvalidValue (RPCServerError):
-    def __init__ (self, origmsg):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_INVALID_VALUE)
+    def __init__ (self, origmsg, **kwargs):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_INVALID_VALUE, **kwargs)
 
 
 class RPCSvrMissingElement (RPCServerError):
-    def __init__ (self, origmsg, element):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MISSING_ELEMENT, info=element.tag)
+    def __init__ (self, origmsg, tag, **kwargs):
+        try:
+            # Old API had this as an element...
+            tag = tag.tag
+        except AttributeError:
+            pass
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MISSING_ELEMENT, info=tag, **kwargs)
 
 
 class RPCSvrBadElement (RPCServerError):
-    def __init__ (self, origmsg, element):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_BAD_ELEMENT, info=element.tag)
+    def __init__ (self, origmsg, element, **kwargs):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_BAD_ELEMENT, info=element.tag, **kwargs)
 
 
 class RPCSvrUnknownElement (RPCServerError):
-    def __init__ (self, origmsg, element):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_UNKNOWN_ELEMENT, info=element.tag)
+    def __init__ (self, origmsg, element, **kwargs):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_UNKNOWN_ELEMENT, info=element.tag, **kwargs)
 
 
 class RPCSvrErrNotImpl (RPCServerError):
-    def __init__ (self, origmsg):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_NOT_SUPPORTED)
+    def __init__ (self, origmsg, **kwargs):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_NOT_SUPPORTED, **kwargs)
 
 
 class RPCSvrException (RPCServerError):
-    def __init__ (self, origmsg, exception):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_FAILED, info=str(exception))
+    def __init__ (self, origmsg, exception, **kwargs):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_FAILED, info=str(exception), **kwargs)
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 19 2015'

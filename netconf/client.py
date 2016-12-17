@@ -19,6 +19,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import logging
 import io
+import threading
 import socket
 import sshutil.conn
 from lxml import etree
@@ -37,6 +38,9 @@ class NetconfClientSession (NetconfSession):
         self.closing = False
         self.rpc_out = {}
 
+        # Condition to handle rpc_out queue
+        self.cv = threading.Condition()
+
         super(NetconfClientSession, self)._open_session(False)
 
     def __str__ (self):
@@ -48,8 +52,14 @@ class NetconfClientSession (NetconfSession):
 
         reply = None
         try:
-            if self.session_id is not None and self.is_active():
-                self._send_rpc_async("<close-session/>")
+            # So we need a lock here to check these members.
+            send = False
+            with self.cv:
+                if self.session_id is not None and self.is_active():
+                    send = True
+
+            if send:
+                self.send_rpc_async("<close-session/>", noreply=True)
                 # Don't wait for a reply the session is closed!
         except socket.error:
             if self.debug:
@@ -60,9 +70,13 @@ class NetconfClientSession (NetconfSession):
         if self.debug:
             logger.debug("%s: Closed: %s", str(self), str(reply))
 
-    def _send_rpc_async (self, rpc, noreply=False):
-        msg_id = self.message_id
-        self.message_id += 1
+    def send_rpc_async (self, rpc, noreply=False):
+
+        # Get the next message id
+        with self.cv:
+            assert self.session_id is not None
+            msg_id = self.message_id
+            self.message_id += 1
 
         if self.debug:
             logger.debug("%s: Sending RPC message-id: %s", str(self), str(msg_id))
@@ -73,28 +87,22 @@ class NetconfClientSession (NetconfSession):
         if noreply:
             return None
 
-        self.rpc_out[msg_id] = None
+        # Mark us as expecting a reply
+        with self.cv:
+            self.rpc_out[msg_id] = None
+
         return msg_id
 
-    def send_rpc_async (self, rpc, noreply=False):
-        assert self.session_id is not None
-        with self.msglock:
-            return self._send_rpc_async(rpc, noreply)
-
     def send_rpc (self, rpc):
-        assert self.session_id is not None
         msg_id = self.send_rpc_async(rpc)
         return self.wait_reply(msg_id)
 
-    def is_reply_ready_locked (self, msg_id):
-        return self.rpc_out[msg_id] is not None
-
     def is_reply_ready (self, msg_id):
         """Check whether reply is ready (or session closed)"""
-        if not self.is_active():
-            raise SessionError("Session closed while checking for reply")
         with self.cv:
-            return self.is_reply_ready_locked(msg_id)
+            if not self.is_active():
+                raise SessionError("Session closed while checking for reply")
+            return self.rpc_out[msg_id] is not None
 
     def wait_reply (self, msg_id):
         assert msg_id in self.rpc_out
@@ -105,6 +113,7 @@ class NetconfClientSession (NetconfSession):
             self.cv.wait()
 
         if not self.is_active():
+            self.cv.release()
             raise SessionError("Session closed while waiting for reply")
 
         tree, reply, msg = self.rpc_out[msg_id]
@@ -119,7 +128,13 @@ class NetconfClientSession (NetconfSession):
         # ok = reply.xpath("nc:ok", namespaces=self.nsmap)
         return tree, reply, msg
 
-    def _handle_message (self, msg):
+    def reader_exits (self):
+        if self.debug:
+            logger.debug("%s: Reader thread exited notifying all.", str(self))
+        with self.cv:
+            self.cv.notify_all()
+
+    def reader_handle_message (self, msg):
         """Handle a message, lock is already held"""
         try:
             tree = etree.parse(io.BytesIO(msg.encode('utf-8')))
@@ -143,28 +158,49 @@ class NetconfClientSession (NetconfSession):
                 #     raise RPCError(received, tree, error[0])
                 raise SessionError(msg, "No valid message-id attribute found")
 
-            if msg_id not in self.rpc_out:
-                if self.debug:
-                    logger.debug("Ignoring unwanted reply for message-id %s", str(msg_id))
-                return
-            elif self.rpc_out[msg_id] is not None:
-                logger.warning("Received multiple replies for message-id %s: before: %s now: %s",
-                               str(msg_id), str(self.rpc_out[msg_id]), str(msg))
+            # Queue the message
+            with self.cv:
+                try:
+                    if msg_id not in self.rpc_out:
+                        if self.debug:
+                            logger.debug("Ignoring unwanted reply for message-id %s",
+                                         str(msg_id))
+                        return
+                    elif self.rpc_out[msg_id] is not None:
+                        logger.warning("Received multiple replies for message-id %s:"
+                                       " before: %s now: %s",
+                                       str(msg_id),
+                                       str(self.rpc_out[msg_id]),
+                                       str(msg))
 
-            if self.debug:
-                logger.debug("%s: Received rpc-reply message-id: %s",
-                             str(self),
-                             str(msg_id))
-            self.rpc_out[msg_id] = tree, reply, msg
+                    if self.debug:
+                        logger.debug("%s: Received rpc-reply message-id: %s",
+                                     str(self),
+                                     str(msg_id))
+                    self.rpc_out[msg_id] = tree, reply, msg
+                except Exception as error:
+                    logger.debug("%s: Unexpected exception: %s",
+                                 str(self),
+                                 str(error))
+                    raise
+                finally:
+                    self.cv.notify_all()
 
 
 class NetconfSSHSession (NetconfClientSession):
-    def __init__ (self, host, port=830, username=None, password=None, debug=False):
+    def __init__ (self, host, port=830, username=None, password=None, debug=False, cache=None):
         if username is None:
             import getpass
             username = getpass.getuser()
-        stream = sshutil.conn.SSHClientSession(host, port, "netconf", username, password, debug)
+        stream = sshutil.conn.SSHClientSession(host,
+                                               port,
+                                               "netconf",
+                                               username,
+                                               password,
+                                               debug,
+                                               cache=cache)
         super(NetconfSSHSession, self).__init__(stream, debug)
+
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 19 2015'

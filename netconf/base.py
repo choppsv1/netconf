@@ -83,7 +83,7 @@ class NetconfFramingTransport (NetconfPacketTransport):
         if stream is not None:
             self.stream = None
             if self.debug:
-                logger.debug("Closing netconf socket stream %s", str(self.stream))
+                logger.debug("Closing netconf socket stream %s", str(stream))
             stream.close()
 
     def is_active (self):
@@ -198,14 +198,18 @@ class NetconfFramingTransport (NetconfPacketTransport):
 
 class NetconfSession (object):
     """Netconf Protocol Server and Client"""
+
+    # This class is almost idntical to sshutil.SSHServerSession We need to
+    # figure a way to factor the commonality. One issue is that this class can
+    # be used with any transport not just SSH so where should it go?
+
     def __init__ (self, stream, debug, session_id, max_chunk=MAXSSHBUF):
         self.debug = debug
         self.pkt_stream = NetconfFramingTransport(stream, max_chunk, debug)
         self.new_framing = False
         self.capabilities = set()
         self.reader_thread = None
-        self.msglock = threading.RLock()
-        self.cv = threading.Condition(self.msglock)
+        self.lock = threading.Lock()
         self.session_id = session_id
         self.session_open = False
 
@@ -214,16 +218,24 @@ class NetconfSession (object):
             self.close()
 
     def is_active (self):
-        return self.pkt_stream and self.pkt_stream.is_active()
+        with self.lock:
+            return self.pkt_stream and self.pkt_stream.is_active()
 
     def __str__ (self):
         return "NetconfSession(sid:{})".format(self.session_id)
 
     def send_message (self, msg):
-        self.pkt_stream.send_pdu(XML_HEADER + msg, self.new_framing)
+        with self.lock:
+            pkt_stream = self.pkt_stream
+        pkt_stream.send_pdu(XML_HEADER + msg, self.new_framing)
 
-    def receive_message (self):
-        return self.pkt_stream.receive_pdu(self.new_framing)
+    def _receive_message (self):
+        # private method to receive a full message.
+        with self.lock:
+            if self.reader_thread and not self.reader_thread.keep_running:
+                return None
+            pkt_stream = self.pkt_stream
+        return pkt_stream.receive_pdu(self.new_framing)
 
     def send_hello (self, caplist, session_id=None):
         msg = elm("hello", attrib={'xmlns': NSMAP['nc']})
@@ -233,36 +245,35 @@ class NetconfSession (object):
             self.methods.nc_append_capabilities(caps)       # pylint: disable=E1101
         msg.append(caps)
 
-        with self.msglock:
-            if self.debug:
-                logger.debug("%s: Sending HELLO", str(self))
-            if session_id is not None:
-                msg.append(E("session-id", str(session_id)))
-            msg = etree.tostring(msg)
-            self.send_message(msg.decode('utf-8'))
+        if self.debug:
+            logger.debug("%s: Sending HELLO", str(self))
+        if session_id is not None:
+            msg.append(E("session-id", str(session_id)))
+        msg = etree.tostring(msg)
+        self.send_message(msg.decode('utf-8'))
 
     def close (self):
         if self.debug:
             logger.debug("%s: Closing.", str(self))
 
-        if self.session_open:
-            with self.cv:
+        with self.lock:
+            if self.session_open:
                 self.session_open = False
                 self.session_id = None
 
-                # XXX the locking and dealing with the exit of this thread needs improvement
-                if self.reader_thread:
-                    self.reader_thread.keep_running = False
+            if self.reader_thread:
+                self.reader_thread.keep_running = False
 
-        if self.pkt_stream is not None:
-            if self.debug:
-                logger.debug("%s: Closing transport.", str(self))
+            if self.pkt_stream is not None:
+                if self.debug:
+                    logger.debug("%s: Closing transport.", str(self))
 
-            pkt_stream = self.pkt_stream
-            self.pkt_stream = None
+                pkt_stream = self.pkt_stream
+                self.pkt_stream = None
 
-            if pkt_stream:
-                pkt_stream.close()
+                if pkt_stream:
+                    # If we are blocked on reading this should unblock us
+                    pkt_stream.close()
 
     def _open_session (self, is_server):
         assert is_server or self.session_id is None
@@ -273,7 +284,7 @@ class NetconfSession (object):
             self.send_hello((NC_BASE_10, NC_BASE_11), self.session_id)
 
             # Get reply
-            reply = self.receive_message()
+            reply = self._receive_message()
             if self.debug:
                 logger.debug("Received HELLO")
 
@@ -320,41 +331,47 @@ class NetconfSession (object):
             self.close()
             raise
 
-    def _handle_message (self, msg):
-        raise NotImplementedError("_handle_message")
+    def reader_exits (self):
+        # Called from reader thread when our reader thread exits
+        raise NotImplementedError("reader_exits")
+
+    def reader_handle_message (self, msg):
+        # Called from reader thread after receiving a framed message
+        raise NotImplementedError("read_handle_message")
 
     def _read_message_thread (self):
         # XXX the locking and dealing with the exit of this thread needs improvement
         if self.debug:
             logger.debug("Starting reader thread.")
+
         reader_thread = self.reader_thread
         try:
             while self.pkt_stream:
-                if not reader_thread.keep_running:
-                    # Notify client threads that we are exiting
-                    self.cv.notify_all()
-                    break
+                with self.lock:
+                    pkt_stream = self.pkt_stream
+                    if not reader_thread.keep_running:
+                        break
+                    assert pkt_stream is not None
 
-                # XXX this hangs
-                # with self.cv:
+                msg = self._receive_message()
+                if msg:
+                    self.reader_handle_message(msg)
+                    closed = False
+                else:
+                    # Client closed, never really see this 1/2 open case unfortunately.
+                    if self.debug:
+                        logger.debug("Client remote closed, exiting reader thread.")
+                    closed = True
 
-                assert self.pkt_stream is not None
-                msg = self.receive_message()
-                if not reader_thread.keep_running:
-                    # Notify client threads that we are exiting
-                    self.cv.notify_all()
-                    break
-
-                # XXX might we get None for message here if we got an EOF?
-
-                with self.cv:
-                    # with self.msglock: # this causes hangs
-                    if True:
-                        self._handle_message(msg)
-                    self.cv.notify_all()
+                with self.lock:
+                    if closed:
+                        reader_thread.keep_running = False
+                    if not reader_thread.keep_running:
+                        break
 
             if self.debug:
                 logger.debug("Exiting reader thread")
+
         except AttributeError as error:
             # Should we close the session cleanly or just disconnect?
             if "'NoneType' object has no attribute 'recv'" in str(error):
@@ -378,11 +395,14 @@ class NetconfSession (object):
             #                  traceback.format_exc())
             # else:
             logger.debug("%s: Session channel closed [session_open == %s]: %s",
-                            str(self),
-                            str(self.session_open),
-                            str(error))
-            if self.session_open:
+                         str(self),
+                         str(self.session_open),
+                         str(error))
+            try:
                 self.close()
+            except Exception as error:
+                logger.debug("%s: Exception while closing during ChannelClosed: %s",
+                             str(self), str(error))
         except SessionError as error:
             # Should we close the session cleanly or just disconnect?
             logger.error("%s Session error [closing session]: %s", str(self), str(error))
@@ -392,7 +412,9 @@ class NetconfSession (object):
                 logger.debug("Socket error in reader thread [exiting]: %s", str(error))
             self.close()
         except Exception as error:
-            if reader_thread.keep_running:
+            with self.lock:
+                keep_running = reader_thread.keep_running
+            if keep_running:
                 logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
                              str(error),
                              traceback.format_exc())
@@ -402,8 +424,9 @@ class NetconfSession (object):
                 logger.debug("Exception in reader thread [exiting]: %s: %s", str(error), traceback.format_exc())
         finally:
             # If we are exiting the read thread we close the session.
-            with self.cv:
-                self.cv.notify_all()
+            self.reader_exits()
+
+
 __author__ = 'Christian Hopps'
 __date__ = 'December 23 2014'
 __version__ = '1.0'

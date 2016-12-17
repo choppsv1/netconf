@@ -17,10 +17,10 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
+import errno
 import getpass
 import logging
-import sys
-import threading
+import socket
 try:
     from lxml import etree
 except ImportError:
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 nc_server = None
 NC_PORT = None
 SERVER_DEBUG = True
-CLIENT_DEBUG = False
+CLIENT_DEBUG = True
 
 
 class NetconfMethods (server.NetconfMethods):
@@ -59,21 +59,19 @@ def setup_module (unused_module):
         server_ctl = server.SSHUserPassController(username=getpass.getuser(),
                                                   password="admin")
         nc_server = server.NetconfSSHServer(server_ctl=server_ctl,
-                                           server_methods=NetconfMethods(),
-                                           port=NC_PORT,
-                                           host_key="tests/host_key",
-                                           debug=SERVER_DEBUG)
+                                            server_methods=NetconfMethods(),
+                                            port=NC_PORT,
+                                            host_key="tests/host_key",
+                                            debug=SERVER_DEBUG)
 
 
 def cleanup_module (unused_module):
-    if setup_module.init:
+    global nc_server
+    if nc_server:
         logger.info("Deleting server")
 
         # Delete the server so that we don't end up with a bunch of logging going on on exit.
-        global nc_server
-        s = nc_server
         nc_server = None
-        del s
 
         # now let's force garbage collection to try and get rid of other objects.
         logger.info("Garbage collecting")
@@ -93,7 +91,7 @@ def test_not_supported ():
     except RPCError as error:
         assert error.get_error_tag() == "operation-not-supported"
     else:
-        logger.error("Unexpected success: {}", rval)
+        logger.error("Unexpected success: %s", str(rval))
         assert False
 
 
@@ -238,7 +236,68 @@ def test_multi_session ():
                                                  port=nc_server.port))
 
 
-def test_multi_open ():
+def test_server_close ():
+    server_ctl = server.SSHUserPassController(username=getpass.getuser(),
+                                              password="admin")
+    port = None
+    LAST_INDEX = 40000 + 5000
+    for port in range(40000, LAST_INDEX + 1):
+        try:
+            logger.info("Create server on port %d", port)
+            ns = server.NetconfSSHServer(server_ctl=server_ctl,
+                                         server_methods=NetconfMethods(),
+                                         port=port,
+                                         host_key="tests/host_key",
+                                         debug=SERVER_DEBUG)
+            break
+        except socket.error as error:
+            logger.info("Got exception: %s %d %d", str(error),
+                        error.errno,
+                        errno.EADDRINUSE)
+            if error.errno != errno.EADDRINUSE or port == LAST_INDEX:
+                raise
+
+    logger.info("Connect to server on port %d", port)
+    session = client.NetconfSSHSession("127.0.0.1",
+                                       password="admin",
+                                       port=port,
+                                       debug=CLIENT_DEBUG)
+    session.close()
+    # NetconfSSHSession.flush()
+
+    logger.debug("Closing")
+    ns.close()
+    logger.debug("Joining")
+    ns.join()
+
+    # import time
+    # time.sleep(.1)
+
+    for i in range(0, 10):
+        logger.debug("Starting %d iteration", i)
+        ns = server.NetconfSSHServer(server_ctl=server_ctl,
+                                     server_methods=NetconfMethods(),
+                                     port=port,
+                                     host_key="tests/host_key",
+                                     debug=SERVER_DEBUG)
+
+        logger.info("Connect to server on port %d", port)
+        session = client.NetconfSSHSession("127.0.0.1",
+                                           password="admin",
+                                           port=port,
+                                           debug=CLIENT_DEBUG)
+        session.close()
+        # NetconfSSHSession.flush()
+
+        logger.debug("Closing")
+        ns.close()
+        logger.debug("Joining")
+        ns.join()
+    logger.debug("Test Complete")
+
+
+def _test_multi_open (client_cache):
+
     logger.info("Create Server")
     server_ctl = server.SSHUserPassController(username=getpass.getuser(),
                                               password="admin")
@@ -250,21 +309,31 @@ def test_multi_open ():
     port = ns.port
 
     logger.info("Open sessions")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1",
+                                          password="admin",
+                                          port=port,
+                                          debug=CLIENT_DEBUG,
+                                          cache=client_cache) for unused in range(0, 25) ]
 
     logger.info("Close sessions")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1",
+                                          password="admin",
+                                          port=port,
+                                          debug=CLIENT_DEBUG) for unused in range(0, 25) ]
 
     logger.info("Closeing")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [ client.NetconfSSHSession("127.0.0.1",
+                                          password="admin",
+                                          port=port,
+                                          debug=CLIENT_DEBUG) for unused in range(0, 25) ]
     logger.info("Reclosing")
     for session in sessions:
         session.close()
@@ -278,6 +347,16 @@ def test_multi_open ():
     # Delete the server so that we don't end up with a bunch of logging going on on exit.
     del ns
     del server_ctl
+
+
+def test_multi_open_no_cache ():
+    _test_multi_open(None)
+
+
+def test_multi_open_cache ():
+    from sshutil.cache import SSHConnectionCache
+    _test_multi_open(SSHConnectionCache("test multi open cache"))
+
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 17 2015'

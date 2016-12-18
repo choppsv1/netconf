@@ -17,23 +17,23 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
-import sys
-import traceback
-import logging
 import io
+import logging
 import os
-import select
-import socket
-if sys.platform == 'win32' and sys.version_info < (3, 5):
-    import backports.socketpair
+import sys
 import threading
 import paramiko as ssh
 from lxml import etree
+import sshutil.server
+
 from netconf import base
 import netconf.error as ncerror
 from netconf import NSMAP
 from netconf import qmap
 from netconf import util
+
+if sys.platform == 'win32' and sys.version_info < (3, 5):
+    import backports.socketpair             # pylint: disable=E0401,W0611
 
 logger = logging.getLogger(__name__)
 
@@ -76,14 +76,14 @@ class SSHAuthController (ssh.ServerInterface):
                     continue
                 values = [ x.strip() for x in line.split() ]
 
-                bits = exp = None
+                exp = None
                 try:
-                    bits = int(values[0])
+                    int(values[0])      # bits value?
                 except ValueError:
                     # Type 1 or type 2, type 1 is bits in second value
                     options_ktype = values[0]
                     try:
-                        bits = int(values[1])
+                        int(values[1])  # bits value?
                     except ValueError:
                         # type 2 with options
                         ktype = options_ktype
@@ -104,9 +104,9 @@ class SSHAuthController (ssh.ServerInterface):
                 if data:
                     import base64
                     if ktype == "ssh-rsa":
-                        key = ssh.RSAKey(data=base64.decodestring(data.encode('ascii')))
+                        key = ssh.RSAKey(data=base64.decodebytes(data.encode('ascii')))
                     elif ktype == "ssh-dss":
-                        key = ssh.DSSKey(data=base64.decodestring(data.encode('ascii')))
+                        key = ssh.DSSKey(data=base64.decodebytes(data.encode('ascii')))
                     else:
                         key = None
                     if key:
@@ -190,11 +190,19 @@ class NetconfServerSession (base.NetconfSession):
     handled_rpc_methods = set(["close-session",
                                "kill-session"])
 
-    def __init__ (self, pktstream, methods, session_id, debug):
-        super(NetconfServerSession, self).__init__(pktstream, debug, session_id)
-        self.methods = methods
+    def __init__ (self, channel, server, unused_extra_args, debug):
+        self.server = server
 
+        sid = server.allocate_session_id()
+        if debug:
+            logger.debug("NetconfServerSession: Creating session-id %s", str(sid))
+
+        self.methods = server.server_methods
+        super(NetconfServerSession, self).__init__(channel, debug, sid)
         super(NetconfServerSession, self)._open_session(True)
+
+        if self.debug:
+            logger.debug("%s: Client session-id %s created", str(self), str(sid))
 
     def __del__ (self):
         self.close()
@@ -204,11 +212,15 @@ class NetconfServerSession (base.NetconfSession):
         return "NetconfServerSession(sid:{})".format(self.session_id)
 
     def close (self):
-        # XXX should be invoking a method in self.methods
+        # XXX should be invoking a method in self.methods?
         if self.debug:
             logger.debug("%s: Closing.", str(self))
 
-        super(NetconfServerSession, self).close()
+        try:
+            super(NetconfServerSession, self).close()
+        except EOFError:
+            if self.debug:
+                logger.debug("%s: EOF error while closing", str(self))
 
         if self.debug:
             logger.debug("%s: Closed.", str(self))
@@ -234,7 +246,12 @@ class NetconfServerSession (base.NetconfSession):
             logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
-    def _handle_message (self, msg):
+    def reader_exits (self):
+        if self.debug:
+            logger.debug("%s: Reader thread exited.", str(self))
+        return
+
+    def reader_handle_message (self, msg):
         """Handle a message, lock is already held"""
         if not self.session_open:
             return
@@ -344,83 +361,12 @@ class NetconfServerSession (base.NetconfSession):
                     raise ncerror.SessionError(msg, "Malformed message")
             except ncerror.RPCServerError as error:
                 self.send_message(error.get_reply_msg())
+            except EOFError:
+                if self.debug:
+                    logger.debug("Got EOF in reader_handle_message")
             except Exception as exception:
                 error = ncerror.RPCSvrException(rpc, exception)
                 self.send_message(error.get_reply_msg())
-
-
-class NetconfSSHServerSocket (object):
-    """An SSH socket connection from a client"""
-    def __init__ (self, server_ctl, server_methods, server, newsocket, addr, debug):
-        self.server_methods = server_methods
-        self.server = server
-        self.client_socket = newsocket
-        self.client_addr = addr
-        self.debug = debug
-        self.server_ctl = server_ctl
-
-        try:
-            if self.debug:
-                logger.debug("%s: Opening SSH connection", str(self))
-
-            self.ssh = ssh.Transport(self.client_socket)
-            self.ssh.add_server_key(self.server.host_key)
-            self.ssh.start_server(server=self.server_ctl)
-        except ssh.AuthenticationException as error:
-            self.client_socket.close()
-            self.client_socket = None
-            logger.error("Authentication failed:  %s", str(error))
-            raise
-
-        self.thread = threading.Thread(None,
-                                       self._accept_chan_thread,
-                                       name="NetconfSSHAcceptThread")
-        self.thread.daemon = True
-        self.thread.start()
-
-    def __str__ (self):
-        return "NetconfSSHServerSocket(client: {})".format(self.client_addr)
-
-    def _shutdown (self):
-        # XXX we need some sort of locking here...
-        if self.ssh:
-            self.ssh.close()
-            self.ssh = None
-
-        if self.client_socket:
-            self.client_socket.close()
-            self.client_socket = None
-
-    def _accept_chan_thread (self):
-        try:
-            while True:
-                if self.debug:
-                    logger.debug("%s: Accepting channel connections", str(self))
-
-                channel = self.ssh.accept(timeout=None)
-                if channel is None:
-                    if not self.ssh.is_active():
-                        logger.debug("%s: Got channel as None: exiting", str(self))
-                        return
-
-                    logger.warn("%s: Got channel as None on active.", str(self))
-                    continue
-
-                # XXX for some reason we are accepting another connection after we close the previous channel.
-                sid = self.server.allocate_session_id()
-                if self.debug:
-                    logger.debug("%s: Creating session-id %s", str(self), str(sid))
-                session = NetconfServerSession(channel, self.server_methods, sid, self.debug)
-                if self.debug:
-                    logger.debug("%s: Client session-id %s created: %s", str(self), str(sid), str(session))
-        except Exception as error:
-            if self.debug:
-                logger.error("%s: Unexpected exception: %s: %s", str(self), str(error), traceback.format_exc())
-            else:
-                logger.error("%s: Unexpected exception: %s closing", str(self), str(error))
-            self.client_socket.close()
-            self.client_socket = None
-            self.server.remove_socket(self)
 
 
 class NetconfMethods (object):
@@ -468,7 +414,7 @@ class NetconfMethods (object):
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
 
-class NetconfSSHServer (object):
+class NetconfSSHServer (sshutil.server.SSHServer):
     """A netconf server"""
     def __del__ (self):
         logger.error("Deleting %s", str(self))
@@ -484,123 +430,19 @@ class NetconfSSHServer (object):
         for the server. The method names are "rpc_X" where X is the netconf method
         with dash (-) replaced by underscore (_) e.g., rpc_get_config.
         """
-        if server_ctl is None:
-            server_ctl = SSHUserPassController()
-        self.server_ctl = server_ctl
         self.server_methods = server_methods if server_methods is not None else NetconfMethods()
-        self.debug = debug
-        if port is None:
-            port = 0
-        self.port = port
-        self.host_key = None
-
-        # Load the host key for our netconf server.
-        if host_key:
-            assert os.path.exists(host_key)
-            self.host_key = ssh.RSAKey.from_private_key_file(host_key)
-        else:
-            for keypath in [ "/etc/ssh/ssh_host_rsa_key",
-                             "/etc/ssh/ssh_host_dsa_key"]:
-                # XXX check we have access
-                if os.path.exists(keypath):
-                    self.host_key = ssh.RSAKey.from_private_key_file(keypath)
-                    break
-
-        # Bind first to IPv6, if the OS supports binding per AF then the IPv4
-        # will succeed, otherwise the IPv6 will support both AF.
-        for pname, host, proto in [ ("IPv6", '::', socket.AF_INET6), ("IPv4", '', socket.AF_INET) ]:
-            protosocket = socket.socket(proto, socket.SOCK_STREAM)
-            protosocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            if self.debug:
-                logger.debug("Server binding to proto %s port %s", str(pname), str(port))
-            if proto == socket.AF_INET:
-                try:
-                    protosocket.bind((host, port))
-                    # XXX need the actual bind busy error
-                except Exception:
-                    break
-            else:
-                protosocket.bind((host, port, 0, 0))
-
-            if port == 0:
-                assigned = protosocket.getsockname()
-                self.port = assigned[1]
-
-            if self.debug:
-                logger.debug("Server listening on proto %s port %s", str(pname), str(port))
-            protosocket.listen(100)
-
-            # Create a socket to cause closure.
-            self.close_wsocket, self.close_rsocket = socket.socketpair()
-
-            self.lock = threading.Lock()
-            self.session_id = 0
-            self.sockets = []
-
-            self.thread = threading.Thread(None,
-                                           self._accept_socket_thread,
-                                           name="NetconfAcceptThread " + pname,
-                                           args=[protosocket])
-            self.thread.daemon = True
-            self.thread.start()
-
-    def close (self):
-        with self.lock:
-            self.close_wsocket.send(b"!")
-
-    def join (self):
-        "Wait on server to terminate"
-        self.thread.join()
+        self.session_id = 1
+        super(NetconfSSHServer, self).__init__(server_ctl,
+                                               server_session_class=NetconfServerSession,
+                                               port=port,
+                                               host_key=host_key,
+                                               debug=debug)
 
     def allocate_session_id (self):
         with self.lock:
             sid = self.session_id
             self.session_id += 1
             return sid
-
-    def remove_socket (self, serversocket):
-        with self.lock:
-            self.sockets.remove(serversocket)
-
-    def _accept_socket_thread (self, proto_sock):
-        """Call from within a thread to accept connections."""
-
-        # XXX should probably select here so we can cause closure
-        while True:
-            if self.debug:
-                logger.debug("%s: Accepting connections", str(self))
-
-            rfds, unused, unused = select.select([proto_sock, self.close_rsocket], [], [])
-            if self.close_rsocket in rfds:
-                if self.debug:
-                    logger.debug("%s: Got close notification closing down server", str(self))
-
-                # with self.lock:
-                #     sockets = list(self.sockets)
-                sockets = list(self.sockets)
-                for sock in sockets:
-                    if sock in self.sockets:
-                        sock._shutdown()
-
-                # Not until we have a real shutdown
-                # assert not self.sockets
-                return
-
-            if proto_sock in rfds:
-                client, addr = proto_sock.accept()
-                if self.debug:
-                    logger.debug("%s: Client accepted: %s: %s", str(self), str(client), str(addr))
-                try:
-                    with self.lock:
-                        sock = NetconfSSHServerSocket(self.server_ctl,
-                                                      self.server_methods,
-                                                      self,
-                                                      client,
-                                                      addr,
-                                                      self.debug)
-                        self.sockets.append(sock)
-                except ssh.AuthenticationException:
-                    pass
 
     def __str__ (self):
         return "NetconfSSHServer(port={})".format(self.port)

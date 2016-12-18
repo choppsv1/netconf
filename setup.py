@@ -22,7 +22,7 @@ from setuptools import setup
 required = [
     "lxml>=3.1.0",
     "paramiko>=1.10.1",
-    "sshutil>=0.9.0",
+    "sshutil>=1.0.2",
 ]
 if sys.platform == 'win32' and sys.version_info < (3, 5):
     required.append("backports.socketpair>=3.5.0.2")
@@ -31,13 +31,14 @@ if sys.platform == 'win32' and sys.version_info < (3, 5):
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+
 setup (name='netconf',
-       version='0.4.1',
+       version='0.4.2',
        description='Netconf Client/Server Library',
        long_description=read("README.rst"),
        author='Christian E. Hopps',
        author_email='chopps@gmail.com',
        url='https://github.com/choppsv1/netconf',
-       license = 'Apache License, Version 2.0',
+       license='Apache License, Version 2.0',
        install_requires=required,
        packages=['netconf'])

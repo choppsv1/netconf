@@ -17,8 +17,8 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
-from netconf import NSMAP
 import copy
+from netconf import NSMAP
 from lxml import etree
 
 # Tries to somewhat implement RFC6241 filtering
@@ -42,6 +42,9 @@ def leaf_elm (tag, value, attrib=None, **extra):
     e = elm(tag, attrib, **extra)
     e.text = str(value)
     return e
+
+
+# Create another name for leaf_elm function
 leaf = leaf_elm
 
 

@@ -291,6 +291,12 @@ class NetconfServerSession (base.NetconfSession):
                 params = rpc_method.getchildren()
                 paramslen = len(params)
 
+                if self.debug:
+                    logger.debug("%s: RPC: %s: paramslen: %s",
+                                 str(self),
+                                 rpcname,
+                                 str(paramslen))
+
                 if rpcname == "close-session":
                     # XXX should be RPC-unlocking if need be
                     if self.debug:
@@ -346,13 +352,16 @@ class NetconfServerSession (base.NetconfSession):
                     rpcname = rpcname.rpartition("}")[-1]
                     method_name = "rpc_" + rpcname.replace('-', '_')
                     method = getattr(self.methods, method_name, self._rpc_not_implemented)
-                    # logger.debug("%s: Calling method: %s", str(self), str(methodname))
+                    if self.debug:
+                        logger.debug("%s: Calling method: %s", str(self), method_name)
                     reply = method(self, rpc, *params)
                     self.send_rpc_reply(reply, rpc)
                 except NotImplementedError:
                     raise ncerror.RPCSvrErrNotImpl(rpc)
             except ncerror.RPCSvrErrBadMsg as msgerr:
                 if self.new_framing:
+                    if self.debug:
+                        logger.debug("%s: RPCSvrErrBadMsg: %s", str(self), str(msgerr))
                     self.send_message(msgerr.get_reply_msg())
                 else:
                     # If we are 1.0 we have to simply close the connection
@@ -360,11 +369,22 @@ class NetconfServerSession (base.NetconfSession):
                     logger.warning("Closing 1.0 session due to malformed message")
                     raise ncerror.SessionError(msg, "Malformed message")
             except ncerror.RPCServerError as error:
+                if self.debug:
+                    logger.debug("%s: RPCServerError: %s", str(self), str(error))
+                self.send_message(error.get_reply_msg())
+            except EOFError:
+                if self.debug:
+                    logger.debug("%s: Got EOF in reader_handle_message", str(self))
+                error = ncerror.RPCSvrException(rpc, EOFError("EOF"))
                 self.send_message(error.get_reply_msg())
             except EOFError:
                 if self.debug:
                     logger.debug("Got EOF in reader_handle_message")
             except Exception as exception:
+                if self.debug:
+                    logger.debug("%s: Got unexpected exception in reader_handle_message: %s",
+                                 str(self),
+                                 str(exception))
                 error = ncerror.RPCSvrException(rpc, exception)
                 self.send_message(error.get_reply_msg())
 

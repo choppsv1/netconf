@@ -33,7 +33,7 @@ def read(fname):
 
 
 setup (name='netconf',
-       version='0.4.2',
+       version='0.4.3',
        description='Netconf Client/Server Library',
        long_description=read("README.rst"),
        author='Christian E. Hopps',

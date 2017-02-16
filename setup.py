@@ -22,7 +22,7 @@ from setuptools import setup
 required = [
     "lxml>=3.1.0",
     "paramiko>=1.10.1",
-    "sshutil>=1.0.2",
+    "sshutil>=1.1.0",
 ]
 if sys.platform == 'win32' and sys.version_info < (3, 5):
     required.append("backports.socketpair>=3.5.0.2")
@@ -33,7 +33,7 @@ def read(fname):
 
 
 setup (name='netconf',
-       version='0.4.3',
+       version='0.5.0',
        description='Netconf Client/Server Library',
        long_description=read("README.rst"),
        author='Christian E. Hopps',

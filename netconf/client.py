@@ -188,7 +188,7 @@ class NetconfClientSession (NetconfSession):
 
 
 class NetconfSSHSession (NetconfClientSession):
-    def __init__ (self, host, port=830, username=None, password=None, debug=False, cache=None):
+    def __init__ (self, host, port=830, username=None, password=None, debug=False, cache=None, proxycmd=None):
         if username is None:
             import getpass
             username = getpass.getuser()
@@ -198,7 +198,8 @@ class NetconfSSHSession (NetconfClientSession):
                                                username,
                                                password,
                                                debug,
-                                               cache=cache)
+                                               cache=cache,
+                                               proxycmd=proxycmd)
         super(NetconfSSHSession, self).__init__(stream, debug)
 
 

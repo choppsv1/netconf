@@ -33,7 +33,7 @@ def read(fname):
 
 
 setup (name='netconf',
-       version='0.5.1',
+       version='0.5.2',
        description='Netconf Client/Server Library',
        long_description=read("README.rst"),
        author='Christian E. Hopps',
@@ -41,4 +41,5 @@ setup (name='netconf',
        url='https://github.com/choppsv1/netconf',
        license='Apache License, Version 2.0',
        install_requires=required,
+       entry_points={ "console_scripts": [ "netconf-client = netconf.ncclient:main", ]},
        packages=['netconf'])

@@ -44,8 +44,6 @@ def main (*margs):
     else:
         logging.basicConfig(level=logging.WARNING)
 
-        host = os.environ["HOSTPREFIX"]
-
     session = client.NetconfSSHSession(args.host, args.port, args.username, args.password, debug=args.debug)
     if args.infile:
         xml = open(args.infile).read()

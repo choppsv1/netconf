@@ -15,31 +15,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
-import os
 from setuptools import setup
 
-required = [
-    "lxml>=3.1.0",
-    "paramiko>=1.10.1",
-    "sshutil>=1.1.0",
-]
-if sys.platform == 'win32' and sys.version_info < (3, 5):
-    required.append("backports.socketpair>=3.5.0.2")
-
-
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
-
-
-setup (name='netconf',
-       version='0.5.3',
-       description='Netconf Client/Server Library',
-       long_description=read("README.rst"),
-       author='Christian E. Hopps',
-       author_email='chopps@gmail.com',
-       url='https://github.com/choppsv1/netconf',
-       license='Apache License, Version 2.0',
-       install_requires=required,
-       entry_points={ "console_scripts": [ "netconf-client = netconf.ncclient:main", ]},
-       packages=['netconf'])
+setup(
+    setup_requires=['pbr>=1.8'],
+    pbr=True)

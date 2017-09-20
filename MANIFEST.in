@@ -1,5 +1,0 @@
-include CHANGES.org
-include MANIFEST.in
-include README.rst
-include tests/host_key
-include tests/*.py

@@ -80,22 +80,26 @@ class NetconfClientSession (NetconfSession):
 
         if self.debug:
             logger.debug("%s: Sending RPC message-id: %s", str(self), str(msg_id))
-        self.send_message(
-            """<rpc message-id="{}"
-            xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">{}</rpc>""".format(msg_id, rpc))
+
+        def sendit ():
+            self.send_message(
+                """<rpc message-id="{}"
+                xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">{}</rpc>""".format(msg_id, rpc))
 
         if noreply:
+            sendit()
             return None
 
-        # Mark us as expecting a reply
         with self.cv:
+            sendit()
+            # Mark us as expecting a reply
             self.rpc_out[msg_id] = None
 
         return msg_id
 
-    def send_rpc (self, rpc):
+    def send_rpc (self, rpc, timeout=None):
         msg_id = self.send_rpc_async(rpc)
-        return self.wait_reply(msg_id)
+        return self.wait_reply(msg_id, timeout)
 
     def is_reply_ready (self, msg_id):
         """Check whether reply is ready (or session closed)"""
@@ -104,17 +108,21 @@ class NetconfClientSession (NetconfSession):
                 raise SessionError("Session closed while checking for reply")
             return self.rpc_out[msg_id] is not None
 
-    def wait_reply (self, msg_id):
+    def wait_reply (self, msg_id, timeout=None):
         assert msg_id in self.rpc_out
 
         self.cv.acquire()
         # XXX need to make sure the channel doesn't close
         while self.rpc_out[msg_id] is None and self.is_active():
-            self.cv.wait()
+            self.cv.wait(timeout)
 
         if not self.is_active():
             self.cv.release()
             raise SessionError("Session closed while waiting for reply")
+
+        if not self.rpc_out[msg_id]:
+            raise TimeoutError("Timeout ({}s) while waiting for RPC reply to msg-id: {}".format(
+                timeout, msg_id))
 
         tree, reply, msg = self.rpc_out[msg_id]
         del self.rpc_out[msg_id]

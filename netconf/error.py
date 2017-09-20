@@ -36,6 +36,8 @@ class FramingError (NetconfException):
 class SessionError (NetconfException):
     pass
 
+class TimeoutError (NetconfException):
+    pass
 
 class RPCError (NetconfException):
     def __init__ (self, output, tree, error):

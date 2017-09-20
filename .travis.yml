@@ -1,14 +1,15 @@
 language: python
-env:
-- TOXENV=py27
-- TOXENV=py35
-- TOXENV=py36
+python:
+  - "2.7"
+  - "3.5"
+  - "3.6"
 install:
-- pip install tox
-- pip install coveralls
-- pip install nose
+  - pip install tox
+  - pip install tox-travis
+  - pip install coveralls
+  - pip install nose
 script:
-- tox -e $TOXENV
+  - tox
 deploy:
   provider: pypi
   user: choppsv1

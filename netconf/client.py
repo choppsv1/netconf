@@ -22,12 +22,37 @@ import io
 import threading
 import socket
 import sshutil.conn
+import time
 from lxml import etree
 from netconf import NSMAP
 from netconf.base import NetconfSession
 from netconf.error import RPCError, SessionError
 
 logger = logging.getLogger(__name__)
+
+class Timeout (object):
+    def __init__ (self, timeout):
+        # XXX would like to use time.monotonic() here to avoid clock changes
+        self.start_time = time.time()
+        if timeout is None:
+            self.end_time = None
+        else:
+            self.end_time = self.start_time + timeout
+
+    def is_expired (self):
+        if self.end_time is None:
+            return False
+        return self.end_time < time.time()
+
+    def remaining (self):
+        # XXX would like to use time.monotonic() here to avoid clock changes
+        if self.end_time is None:
+            return None
+        ctime = time.time()
+        if self.end_time < ctime:
+            return 0
+        else:
+            return self.end_time - ctime
 
 
 class NetconfClientSession (NetconfSession):
@@ -111,18 +136,26 @@ class NetconfClientSession (NetconfSession):
     def wait_reply (self, msg_id, timeout=None):
         assert msg_id in self.rpc_out
 
+        check_timeout = Timeout(timeout)
+
         self.cv.acquire()
         # XXX need to make sure the channel doesn't close
         while self.rpc_out[msg_id] is None and self.is_active():
-            self.cv.wait(timeout)
+            remaining = check_timeout.remaining()
+
+            logger.info("XXX Calling self.cv.wait with timeout: {}".format(remaining))
+            self.cv.wait(remaining)
+
+            if self.rpc_out[msg_id] is not None:
+                break
+
+            if check_timeout.is_expired():
+                raise TimeoutError("Timeout ({}s) while waiting for RPC reply to msg-id: {}".format(
+                    timeout, msg_id))
 
         if not self.is_active():
             self.cv.release()
             raise SessionError("Session closed while waiting for reply")
-
-        if not self.rpc_out[msg_id]:
-            raise TimeoutError("Timeout ({}s) while waiting for RPC reply to msg-id: {}".format(
-                timeout, msg_id))
 
         tree, reply, msg = self.rpc_out[msg_id]
         del self.rpc_out[msg_id]

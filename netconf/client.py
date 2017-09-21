@@ -143,9 +143,7 @@ class NetconfClientSession (NetconfSession):
         while self.rpc_out[msg_id] is None and self.is_active():
             remaining = check_timeout.remaining()
 
-            logger.info("XXX Calling self.cv.wait with timeout: {}".format(remaining))
             self.cv.wait(remaining)
-
             if self.rpc_out[msg_id] is not None:
                 break
 

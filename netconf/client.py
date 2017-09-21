@@ -24,16 +24,17 @@ import socket
 import sshutil.conn
 import time
 from lxml import etree
+from monotonic import monotonic
 from netconf import NSMAP
 from netconf.base import NetconfSession
 from netconf.error import RPCError, SessionError
+
 
 logger = logging.getLogger(__name__)
 
 class Timeout (object):
     def __init__ (self, timeout):
-        # XXX would like to use time.monotonic() here to avoid clock changes
-        self.start_time = time.time()
+        self.start_time = monotonic()
         if timeout is None:
             self.end_time = None
         else:
@@ -42,13 +43,12 @@ class Timeout (object):
     def is_expired (self):
         if self.end_time is None:
             return False
-        return self.end_time < time.time()
+        return self.end_time < monotonic()
 
     def remaining (self):
-        # XXX would like to use time.monotonic() here to avoid clock changes
         if self.end_time is None:
             return None
-        ctime = time.time()
+        ctime = monotonic()
         if self.end_time < ctime:
             return 0
         else:

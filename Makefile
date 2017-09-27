@@ -6,8 +6,6 @@ PYLINT=pylint
 PYTEST=py.test
 PYTHON=python
 
-CASSFILE=docker run --net=host repo.dev.terastrm.net:5000/cassfile:latest
-
 TSFILE=.lint-timestamp
 
 check:

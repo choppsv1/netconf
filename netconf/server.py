@@ -125,8 +125,8 @@ class SSHAuthController (ssh.ServerInterface):
                 allowed += "password"
 
             if self.get_user_auth_keys(username):
-		if allowed != "":
-			allowed += ","
+                if allowed != "":
+                    allowed += ","
                 allowed.append("publickey")
         logger.debug("Allowed methods for user %s: %s", str(username), allowed)
         return allowed

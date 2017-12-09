@@ -25,6 +25,7 @@ try:
     from lxml import etree
 except ImportError:
     from xml.etree import ElementTree as etree
+import paramiko as ssh
 
 from netconf import client
 from netconf import server
@@ -92,6 +93,17 @@ def test_not_supported ():
         assert error.get_error_tag() == "operation-not-supported"
     else:
         logger.error("Unexpected success: %s", str(rval))
+        assert False
+
+def test_bad_password ():
+    try:
+        session = client.NetconfSSHSession("127.0.0.1",
+                                           password="badpass",
+                                           port=nc_server.port)
+    except ssh.AuthenticationException as error:
+        pass
+    else:
+        logger.error("Unexpected success: %s", str(session))
         assert False
 
 

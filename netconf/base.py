@@ -63,13 +63,13 @@ def chunkit (msg, maxsend, minsend=0, pad="\n"):
     added if required. This function currently requires that maxsend
     is at least large enough to hold 2 minsend chunks.
     """
-    sz = len(msg)
-    nchunks = sz // maxsend
-    lastmax = sz % maxsend
-
     # For now we'll make this assumption as it makes the
     # implementation much easier.
     assert maxsend >= 2 * minsend
+
+    sz = len(msg)
+    nchunks = sz // maxsend
+    lastmax = sz % maxsend
 
     # Handle the special cases
     if sz == 0:
@@ -84,29 +84,16 @@ def chunkit (msg, maxsend, minsend=0, pad="\n"):
             msg = msg + pad * (minsend - lastmax)
         yield msg
         return
-    elif nchunks == 1:
-        # nchunks == 1 and lastmax == 0 handled above.
-        assert lastmax != 0
-        canborrow = maxsend - minsend
-        if lastmax < minsend:
-            needpad =  (minsend - lastmax) - canborrow
-            if needpad > 0:
-                msg = msg + pad * needpad
-        sz = len(msg)
-        nchunks = sz // maxsend
-        lastmax = sz % maxsend
 
     # Make sure our final chunk is at least minsend long.
+    nchunks -= 1
     penultmax = maxsend
     if lastmax == 0:
         lastmax = maxsend
-        nchunks -= 2
+        nchunks -= 1
     elif lastmax < minsend:
         penultmax -= minsend - lastmax
         lastmax = minsend
-        nchunks -= 1
-    else:
-        nchunks -= 1
 
     left = 0
     for unused in range(0, nchunks):

@@ -20,6 +20,7 @@ from __future__ import absolute_import, division, unicode_literals, print_functi
 import logging
 import io
 import socket
+import sys
 import threading
 import traceback
 from lxml import etree
@@ -35,19 +36,73 @@ NC_BASE_10 = "urn:ietf:params:netconf:base:1.0"
 NC_BASE_11 = "urn:ietf:params:netconf:base:1.1"
 XML_HEADER = """<?xml version="1.0" encoding="UTF-8"?>"""
 
+if sys.version_info[0] >= 3:
+    def lookahead(iterable):
+        """Return an element and an indication if it's the last element"""
+        i = iter(iterable)
+        last = next(i)
+        for elm in i:
+            yield last, False
+            last = elm
+        yield last, True
+else:
+    def lookahead(iterable):
+        """Return an element and an indication if it's the last element"""
+        i = iter(iterable)
+        last = i.next()
+        for elm in i:
+            yield last, False
+            last = elm
+        yield last, True
 
-def chunkit (msg, maxsend):
+
+def chunkit (msg, maxsend, minsend=0, pad="\n"):
+    """
+    chunkit iterates over a msg returning chunks of at most maxsend
+    size, and of at least minsend size if non-zero. Padding will be
+    added if required. This function currently requires that maxsend
+    is at least large enough to hold 2 minsend chunks.
+    """
+    # For now we'll make this assumption as it makes the
+    # implementation much easier.
+    assert maxsend >= 2 * minsend
+
     sz = len(msg)
+    nchunks = sz // maxsend
+    lastmax = sz % maxsend
+
+    # Handle the special cases
+    if sz == 0:
+        return
+    elif nchunks == 1 and lastmax == 0:
+        yield msg
+        return
+    elif nchunks == 0:
+        # lastmax == 0 then sz == 0 handled above.
+        assert lastmax != 0
+        if lastmax < minsend:
+            msg = msg + pad * (minsend - lastmax)
+        yield msg
+        return
+
+    # Make sure our final chunk is at least minsend long.
+    nchunks -= 1
+    penultmax = maxsend
+    if lastmax == 0:
+        lastmax = maxsend
+        nchunks -= 1
+    elif lastmax < minsend:
+        penultmax -= minsend - lastmax
+        lastmax = minsend
+
     left = 0
-    for unused in range(0, sz // maxsend):
-        right = left + maxsend
-        chunk = msg[left:right]
-        # msg = buffer(msg, left, right)
-        left = right
-        yield chunk
-    # msg = buffer(msg, left)
-    msg = msg[left:]
-    yield msg
+    for unused in range(0, nchunks):
+        yield msg[left:left + maxsend]
+        left += maxsend
+
+    right = left + penultmax
+    yield msg[left:right]
+    yield msg[right:]
 
 
 class NetconfTransportMixin (object):
@@ -106,13 +161,15 @@ class NetconfFramingTransport (NetconfPacketTransport):
 
     def send_pdu (self, msg, new_framing):
         assert self.stream is not None
-        # Apparently ssh has a bug that requires minimum of 64 bytes?
-        # This may not be sufficient to fix this.
         if new_framing:
-            msg = "\n#{}\n{}\n##\n".format(len(msg), msg)
+            bmsg = msg.encode('utf-8')
+            blen = len(bmsg)
+            msg = "\n#{}\n".format(blen).encode('utf-8') + bmsg + "\n##\n".encode('utf-8')
         else:
             msg += "]]>]]>"
-        for chunk in chunkit(msg, self.max_chunk - 64):
+
+        # Apparently ssh has a bug that requires minimum of 64 bytes?
+        for chunk in chunkit(msg, self.max_chunk, 64):
             self.stream.sendall(chunk)
 
     def _receive_10 (self):
@@ -227,6 +284,8 @@ class NetconfSession (object):
     def send_message (self, msg):
         with self.lock:
             pkt_stream = self.pkt_stream
+        if self.debug:
+            logger.debug("Sending message (%d): %s", len(msg), msg)
         pkt_stream.send_pdu(XML_HEADER + msg, self.new_framing)
 
     def _receive_message (self):

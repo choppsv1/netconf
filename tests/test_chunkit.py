@@ -26,77 +26,77 @@ def test_chunkit ():
     Handle all possible cases until we get firmly in the loop
     including coming out with leftovers
 
-    >>> [x for x in chunkit("", 6, 3, "x")]
+    >>> [x for x in chunkit("", 6, 3, "x")]                 # doctest: +ALLOW_UNICODE
     []
-    >>> [x for x in chunkit("0", 6, 3, "x")]
+    >>> [x for x in chunkit("0", 6, 3, "x")]                # doctest: +ALLOW_UNICODE
     ['0xx']
-    >>> [x for x in chunkit("01", 6, 3, "x")]
+    >>> [x for x in chunkit("01", 6, 3, "x")]               # doctest: +ALLOW_UNICODE
     ['01x']
-    >>> [x for x in chunkit("012", 6, 3, "x")]
+    >>> [x for x in chunkit("012", 6, 3, "x")]              # doctest: +ALLOW_UNICODE
     ['012']
-    >>> [x for x in chunkit("0123", 6, 3, "x")]
+    >>> [x for x in chunkit("0123", 6, 3, "x")]             # doctest: +ALLOW_UNICODE
     ['0123']
-    >>> [x for x in chunkit("01234", 6, 3, "x")]
+    >>> [x for x in chunkit("01234", 6, 3, "x")]            # doctest: +ALLOW_UNICODE
     ['01234']
-    >>> [x for x in chunkit("012345", 6, 3, "x")]
+    >>> [x for x in chunkit("012345", 6, 3, "x")]           # doctest: +ALLOW_UNICODE
     ['012345']
-    >>> [x for x in chunkit("0123456", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456", 6, 3, "x")]          # doctest: +ALLOW_UNICODE
     ['0123', '456']
-    >>> [x for x in chunkit("01234567", 6, 3, "x")]
+    >>> [x for x in chunkit("01234567", 6, 3, "x")]         # doctest: +ALLOW_UNICODE
     ['01234', '567']
-    >>> [x for x in chunkit("012345678", 6, 3, "x")]
+    >>> [x for x in chunkit("012345678", 6, 3, "x")]        # doctest: +ALLOW_UNICODE
     ['012345', '678']
-    >>> [x for x in chunkit("0123456789", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789", 6, 3, "x")]       # doctest: +ALLOW_UNICODE
     ['012345', '6789']
-    >>> [x for x in chunkit("0123456789a", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789a", 6, 3, "x")]      # doctest: +ALLOW_UNICODE
     ['012345', '6789a']
-    >>> [x for x in chunkit("0123456789ab", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789ab", 6, 3, "x")]     # doctest: +ALLOW_UNICODE
     ['012345', '6789ab']
-    >>> [x for x in chunkit("0123456789abc", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abc", 6, 3, "x")]    # doctest: +ALLOW_UNICODE
     ['012345', '6789', 'abc']
-    >>> [x for x in chunkit("0123456789abcd", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcd", 6, 3, "x")]   # doctest: +ALLOW_UNICODE
     ['012345', '6789a', 'bcd']
-    >>> [x for x in chunkit("0123456789abcde", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcde", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cde']
-    >>> [x for x in chunkit("0123456789abcdef", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcdef", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cdef']
-    >>> [x for x in chunkit("0123456789abcdefg", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcdefg", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cdefg']
-    >>> [x for x in chunkit("0123456789abcdefgh", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcdefgh", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cdefgh']
-    >>> [x for x in chunkit("0123456789abcdefghi", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcdefghi", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cdef', 'ghi']
-    >>> [x for x in chunkit("0123456789abcdefghij", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcdefghij", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cdefg', 'hij']
-    >>> [x for x in chunkit("0123456789abcdefghijk", 6, 3, "x")]
+    >>> [x for x in chunkit("0123456789abcdefghijk", 6, 3, "x")]  # doctest: +ALLOW_UNICODE
     ['012345', '6789ab', 'cdefgh', 'ijk']
-    >>> [x for x in chunkit("", 3)]
+    >>> [x for x in chunkit("", 3)]                         # doctest: +ALLOW_UNICODE
     []
-    >>> [x for x in chunkit("0", 3)]
+    >>> [x for x in chunkit("0", 3)]                        # doctest: +ALLOW_UNICODE
     ['0']
-    >>> [x for x in chunkit("01", 3)]
+    >>> [x for x in chunkit("01", 3)]                       # doctest: +ALLOW_UNICODE
     ['01']
-    >>> [x for x in chunkit("012", 3)]
+    >>> [x for x in chunkit("012", 3)]                      # doctest: +ALLOW_UNICODE
     ['012']
-    >>> [x for x in chunkit("0123", 3)]
+    >>> [x for x in chunkit("0123", 3)]                     # doctest: +ALLOW_UNICODE
     ['012', '3']
-    >>> [x for x in chunkit("01234", 3)]
+    >>> [x for x in chunkit("01234", 3)]                    # doctest: +ALLOW_UNICODE
     ['012', '34']
-    >>> [x for x in chunkit("012345", 3)]
+    >>> [x for x in chunkit("012345", 3)]                   # doctest: +ALLOW_UNICODE
     ['012', '345']
-    >>> [x for x in chunkit("0123456", 3)]
+    >>> [x for x in chunkit("0123456", 3)]                  # doctest: +ALLOW_UNICODE
     ['012', '345', '6']
-    >>> [x for x in chunkit("01234567", 3)]
+    >>> [x for x in chunkit("01234567", 3)]                 # doctest: +ALLOW_UNICODE
     ['012', '345', '67']
-    >>> [x for x in chunkit("012345678", 3)]
+    >>> [x for x in chunkit("012345678", 3)]                # doctest: +ALLOW_UNICODE
     ['012', '345', '678']
-    >>> [x for x in chunkit("0123456789", 3)]
+    >>> [x for x in chunkit("0123456789", 3)]               # doctest: +ALLOW_UNICODE
     ['012', '345', '678', '9']
-    >>> [x for x in chunkit("0123456789a", 3)]
+    >>> [x for x in chunkit("0123456789a", 3)]              # doctest: +ALLOW_UNICODE
     ['012', '345', '678', '9a']
-    >>> [x for x in chunkit("0123456789ab", 3)]
+    >>> [x for x in chunkit("0123456789ab", 3)]             # doctest: +ALLOW_UNICODE
     ['012', '345', '678', '9ab']
-    >>> [x for x in chunkit("0123456789abc", 3)]
+    >>> [x for x in chunkit("0123456789abc", 3)]            # doctest: +ALLOW_UNICODE
     ['012', '345', '678', '9ab', 'c']
     """
 

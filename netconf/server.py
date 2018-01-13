@@ -126,7 +126,9 @@ class SSHAuthController (ssh.ServerInterface):
 
             if self.get_user_auth_keys(username):
                 allowed.append("publickey")
-        logger.debug("Allowed methods for user %s: %s", str(username), str(allowed))
+
+        allowed = ",".join(allowed)
+        logger.debug("Allowed methods for user %s: %s", str(username), allowed)
         return allowed
 
     def check_auth_none (self, unused_username):
@@ -165,7 +167,7 @@ class SSHUserPassController (ssh.ServerInterface):
         self.event = threading.Event()
 
     def get_allowed_auths (self, unused_username):
-        return ["password"]
+        return "password"
 
     def check_auth_none (self, unused_username):
         return ssh.AUTH_FAILED

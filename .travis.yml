@@ -1,22 +1,20 @@
 language: python
 sudo: required
 python:
-  - "2.7"
-  - "3.6"
+- '2.7'
+- '3.5'
+- '3.6'
 install:
-  - pip install tox
-  - pip install tox-travis
-  - pip install coveralls
-  - pip install -r test_requirements.txt
-  - python setup.py develop
+- pip install coveralls tox-travis
+- pip install -r test_requirements.txt
 script:
-  - tox
+- tox
 deploy:
-  - provider: pypi
-    user: choppsv1
-    password:
-      secure: VejRHCCsIK3ESiDVaSpQBh4oWb5ZycJ5dOBB0vZ3mPnNU06tojUi+J/IMTiIPLm1wPnJtH+qh8qvnxyEU8UsiS4KRR3skfZYLpoSCoja0RX/lkpoLYZ+AeWcCsJSvSHSzsd9UFPfrBRbo3kvog7+6uUWLCq6IViW5397Hdb9yIP1214KhxaSzf4e/5C5rMmsdYtIIuJRA4Z7U5Vb8JpBIQ2Eob7YoyD8FmOSW8e4ZMWTn3OJifd25C1k9AOR5LiCvyxAG/UYS3vHoPK3iZm5WFadubyFiK+4bwKGKPgwy+T6wZYdfqG4yLhULvDox5FYPI0XPByQiPHZukV7pSRZyMImcwIqptn5FykofYOeiIDeRxPyeCtrJisDB5eBqDnPQF4+NfeeCNB5brQK9lFYa9VT+FMvbRTmHcxA83/Xza/H/u6jZLp0Iz3SiwZxYl3Ibgw3yVecXpmTpRCTZySrA+xKBmZyiFy8mU904eMbqhIk+CrWvpTRI2dZ+xnf6+4Srp2507mgyULb6e98b5UW6/4XblqevcjR1fNiWGWPVrP/nRLmiyMxsNYBrA0YK+PLzyv0WtZSwrkS59K2H6clNvgGcUCKcIdEuMZ9gkVAPoSnaVCskXwFg/bmuaUHKWYKWgLtNk2MFWnKM8jPRRBEaNtdCflR3c2m+KPUCGa0MiE=
-    on:
-      branch: master
-      tags: true
-      condition: $TRAVIS_PYTHON_VERSION = "2.7"
+  provider: pypi
+  user: choppsv1
+  password:
+    secure: C9SasWTbOMzsFnNGesjSqHc7urfAKeX8SCIepwVJ3uZqEFoo4JubUkJ8nkyKJ3s20XRNSA+YbdRv5/WDUPdin5xxc4YDZpkyRNEUleQPdAfmTewWgh+9fIxIV3noTBAVgxCxH54bQ0YOvV0GFlgCpmn9PHb6ziDXtsdZWLeLrZyKy88fzcb9HZNemCmcNy8EmKFetkmYVdQCpAlZAxKGIJCNhhTQelH3eZFhFr+D4HrQBbVdll0TjOKa3IxcXhZwBuRivh+WV6AcnhfmbnF6hZc6Z7eCjrBtx5CnzcRxn6NxwS9Le3vDF9DZzCqS8gqx8SkucCVPCXLCLwCQo5XPA8W3PJznTpZVM9uSS5kALLMS7t3KZ0PU9EzKMn6Ofnf3vxst05TDQYNR733s5l4v6UdYaDEoUZLU7W8oY+o3Uyvoynl7x7J0+NVP0xsZM2pqsLtUAgMZit6MfaGmr90qE5hC+ntFW6TXw4p+t9PzdzR1lkD2eSbXnvb4bDCeCqMQuyx6hSKfrCwWTxGw0ggV18f04YFg2qcatK0lMMu5tiLtQi/kA4SvfJWUjtnbudy9k3I38IZo1IIw0OT2mJcB8KexLK0aPf6/kf8F2fiGEY55hIKX/lNHieH0RKoCDkpX/AnlRrZVwPbjWc6WsW9rciUTUEOk7TI9qkbC4d6Ik34=
+  on:
+    branch: master
+    tags: true
+    condition: $TRAVIS_PYTHON_VERSION = "2.7"

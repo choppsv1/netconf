@@ -19,3 +19,6 @@ master branch status:
 
 .. image:: https://coveralls.io/repos/choppsv1/netconf/badge.svg?branch=master&service=github
    :target: https://coveralls.io/github/choppsv1/netconf?branch=master
+
+.. image:: https://readthedocs.org/projects/netconf/badge/?version=latest
+   :target: http://netconf.readthedocs.io/en/latest/

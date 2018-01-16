@@ -18,8 +18,8 @@
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import copy
-from netconf import NSMAP
 from lxml import etree
+from netconf import NSMAP
 
 # Tries to somewhat implement RFC6241 filtering
 
@@ -228,10 +228,10 @@ def filter_leaf_allows_add (filter_elm, tag, data, value):
 def filter_leaf_allows (filter_elm, xpath, value):
     """Check the value at the xpath specified leaf matches the value.
 
-    If filter_elm is None then allow.
-    If there is no xpath element then allow if there are no other children.
-    XXX what about xpath that has embedded predicates!
-        perhaps what we want to call this is a normal path not an xpath.
+    - If filter_elm is None then allow.
+    - If there is no xpath element then allow if there are no other children.
+    - XXX what about xpath that has embedded predicates!
+      perhaps what we want to call this is a normal path not an xpath.
     """
     if filter_elm is None:
         return True

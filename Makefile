@@ -2,20 +2,25 @@
 # December 16, 2014 Christian E. Hopps <chopps@gmail.com>
 #
 PIP=pip
-PYLINT=pylint
+PYLINT=pylint -sn -rn --rcfile=pylintrc
 PYTEST=py.test
 PYTHON=python
 
 TSFILE=.lint-timestamp
 
+.PHONY: doc
+
 check:
 	@echo Running lint on changes with PYLINT=$(PYLINT)
-	@OK=YES; for f in $$(git status | awk '/^[ \t]+(modified|new file): +.*.py$$/{print $$2}'); do if [[ $$f -nt $(TSFILE) ]]; then echo "=== $$f"; if ! $(PYLINT) -r n --rcfile=pylintrc $$f; then OK=NO; fi; fi; done; if [[ $$OK = YES ]]; then touch $(TSFILE); fi
+	@OK=YES; for f in $$(git status | awk '/^[ \t]+(modified|new file): +.*.py$$/{print $$2}'); do if [[ $$f -nt $(TSFILE) ]]; then echo "=== $$f"; if ! $(PYLINT) $$f; then OK=NO; fi; fi; done; if [[ $$OK = YES ]]; then touch $(TSFILE); fi
 
 clean:
 	find . -name '*.pyc' -exec rm {} +
 	$(PYTHON) setup.py clean
-	rm -rf bulid
+	rm -rf bulid doc/build
+
+doc:
+	python setup.py build_sphinx
 
 install:
 	$(PIP) install -e .
@@ -26,7 +31,7 @@ uninstall:
 lint:
 	@for f in $$(find netconf tests -name '*.py'); do \
 		echo "=== Linting $$f"; \
-		$(PYLINT) -r n --rcfile=pylintrc $$f; \
+		$(PYLINT) $$f; \
 	done
 
 test:	lint run-test

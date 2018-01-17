@@ -10,7 +10,9 @@ Usage
 Command Line Tool
 =================
 
-To request config from a server that has your key::
+To request config from a server that has your key:
+
+.. code-block:: shell-script
 
   $ netconf-client --host example.com <<<"<get-config/>"
 
@@ -18,7 +20,9 @@ To request config from a server that has your key::
 Development
 ===========
 
-To use netconf in a project::
+To use netconf in a project:
+
+.. code-block:: python
 
   import netconf
 
@@ -26,7 +30,7 @@ To use netconf in a project::
 Netconf Client
 --------------
 
-To get config from a server::
+To get config from a server:
 
 .. code-block:: python
 
@@ -40,7 +44,7 @@ To get config from a server::
 Netconf Server
 --------------
 
-To create a simple server listening on port 830 that handles one RPC ``<my-cool-rpc>``.
+To create a simple server listening on port 830 that handles one RPC ``<my-cool-rpc>``:
 
 .. code-block:: python
 

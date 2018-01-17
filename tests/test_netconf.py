@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # December 23 2014, Christian Hopps <chopps@gmail.com>
 #
@@ -20,8 +20,8 @@ from __future__ import absolute_import, division, unicode_literals, print_functi
 import getpass
 import logging
 from lxml import etree
-from netconf import client
-from netconf import server
+import netconf.client as client
+import netconf.server as server
 from netconf.error import RPCError
 
 logger = logging.getLogger(__name__)
@@ -30,12 +30,14 @@ NC_PORT = None
 NC_DEBUG = False
 
 
-class NetconfMethods (server.NetconfMethods):
-    def rpc_get (self, unused_session, rpc, *unused_params):
+class NetconfMethods(server.NetconfMethods):
+    def rpc_get(self, session, rpc, filter_or_none):
+        del session  # unused
+        del filter_or_none  # unused
         return etree.Element("ok")
 
 
-def setup_module (unused_module):
+def setup_module(unused_module):
     global nc_server
 
     logging.basicConfig(level=logging.DEBUG)
@@ -43,16 +45,16 @@ def setup_module (unused_module):
     if nc_server is not None:
         logger.error("XXX Called setup_module multiple times")
     else:
-        sctrl = server.SSHUserPassController(username=getpass.getuser(),
-                                             password="admin")
-        nc_server = server.NetconfSSHServer(server_ctl=sctrl,
-                                            server_methods=NetconfMethods(),
-                                            port=NC_PORT,
-                                            host_key="tests/host_key",
-                                            debug=NC_DEBUG)
+        sctrl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
+        nc_server = server.NetconfSSHServer(
+            server_ctl=sctrl,
+            server_methods=NetconfMethods(),
+            port=NC_PORT,
+            host_key="tests/host_key",
+            debug=NC_DEBUG)
 
 
-def test_query ():
+def test_query():
     query = """
     <get>
     <filter>
@@ -63,25 +65,28 @@ def test_query ():
     </get>
     """
     logger.info("Connecting to 127.0.0.1 port %d", nc_server.port)
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       username=getpass.getuser(),
-                                       password="admin",
-                                       port=nc_server.port,
-                                       debug=NC_DEBUG)
+    session = client.NetconfSSHSession(
+        "127.0.0.1",
+        username=getpass.getuser(),
+        password="admin",
+        port=nc_server.port,
+        debug=NC_DEBUG)
     session.send_rpc(query)
 
 
-def test_bad_query ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       username=getpass.getuser(),
-                                       password="admin",
-                                       port=nc_server.port,
-                                       debug=NC_DEBUG)
+def test_bad_query():
+    session = client.NetconfSSHSession(
+        "127.0.0.1",
+        username=getpass.getuser(),
+        password="admin",
+        port=nc_server.port,
+        debug=NC_DEBUG)
     try:
         unused, unused, output = session.send_rpc("<get><unknown/></get>")
         logger.warning("Got unexpected output: %s", str(output))
     except RPCError:
         pass
+
 
 __author__ = 'Christian Hopps'
 __date__ = 'December 23 2014'

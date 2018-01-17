@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # January 12 2018, Christian Hopps <chopps@gmail.com>
 #
@@ -19,9 +19,10 @@
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 
-from netconf.base import chunkit
+from netconf.base import chunkit  # pylint: disable=W0611
 
-def test_chunkit ():
+
+def test_chunkit():
     """
     Handle all possible cases until we get firmly in the loop
     including coming out with leftovers
@@ -99,7 +100,6 @@ def test_chunkit ():
     >>> [x for x in chunkit("0123456789abc", 3)]            # doctest: +ALLOW_UNICODE
     ['012', '345', '678', '9ab', 'c']
     """
-
     """
     Don't handle this right now.
     >>> [x for x in chunkit("", 3, 3, "x")]
@@ -131,6 +131,7 @@ def test_chunkit ():
     >>> [x for x in chunkit("0123456789abc", 3, 3, "x")]
     ['012', '345', '678', '9ab', 'cxx']
     """
+
 
 __author__ = 'Christian Hopps'
 __date__ = 'January 12 2018'

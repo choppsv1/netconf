@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
+#
 # August 23 2017, Christian Hopps <chopps@gmail.com>
 #
 # Copyright (c) 2017, Deutsche Telekom AG.
@@ -14,17 +15,17 @@ import sys
 import netconf.client as client
 
 
-def main (*margs):
-    old_xml = ""
-
+def main(*margs):
     parser = argparse.ArgumentParser("Netconf Client Utility")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument('--host', default="localhost", help='Netconf server hostname')
     parser.add_argument('--port', default="830", help='Netconf server port')
-    parser.add_argument('--hello', action="store_true", help="Do hello and return capabilities of server.")
+    parser.add_argument(
+        '--hello', action="store_true", help="Do hello and return capabilities of server.")
     parser.add_argument("-i", "--infile", help="File to read from")
     parser.add_argument('-p', '--password', default=None, help='Netconf password')
-    parser.add_argument('--passenv', default=None, help='Environment variable holding Cassandra password')
+    parser.add_argument(
+        '--passenv', default=None, help='Environment variable holding Cassandra password')
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet operation")
     parser.add_argument('-u', '--username', default="admin", help='Netconf username')
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
@@ -45,7 +46,8 @@ def main (*margs):
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    session = client.NetconfSSHSession(args.host, args.port, args.username, args.password, debug=args.debug)
+    session = client.NetconfSSHSession(
+        args.host, args.port, args.username, args.password, debug=args.debug)
     if args.hello:
         print("\n".join(session.capabilities))
         sys.exit(0)

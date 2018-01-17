@@ -10,6 +10,13 @@ Usage
 Command Line Tool
 =================
 
+To get the capabilities of a server:
+
+.. code-block:: python
+
+  $ netconf-client --hello --host example.com
+
+
 To request config from a server that has your key:
 
 .. code-block:: shell-script
@@ -30,16 +37,19 @@ To use netconf in a project:
 Netconf Client
 --------------
 
-To get config from a server:
+To open a session to server:
 
 .. code-block:: python
 
   from netconf.client import NetconfSSHSession
 
   session = NetconfSSHSession(host, port, username, password)
-  config = session.send_rpc("<get-config/>")
-  session.close()
 
+To send and RPC to a server:
+
+.. code-block:: python
+
+  rpcout = session.send_rpc("<my-rpc/>")
 
 Netconf Server
 --------------

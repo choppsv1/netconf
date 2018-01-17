@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # March 31 2015, Christian Hopps <chopps@gmail.com>
 #
@@ -24,7 +24,7 @@ from netconf import NSMAP
 # Tries to somewhat implement RFC6241 filtering
 
 
-def qname (tag):
+def qname(tag):
     try:
         return etree.QName(tag)
     except ValueError:
@@ -32,13 +32,13 @@ def qname (tag):
         return etree.QName(NSMAP[prefix], base)
 
 
-def elm (tag, attrib=None, **extra):
+def elm(tag, attrib=None, **extra):
     if attrib is None:
         attrib = dict()
     return etree.Element(qname(tag), attrib, **extra)
 
 
-def leaf_elm (tag, value, attrib=None, **extra):
+def leaf_elm(tag, value, attrib=None, **extra):
     e = elm(tag, attrib, **extra)
     e.text = str(value)
     return e
@@ -48,18 +48,18 @@ def leaf_elm (tag, value, attrib=None, **extra):
 leaf = leaf_elm
 
 
-def subelm (pelm, tag, attrib=None, **extra):
+def subelm(pelm, tag, attrib=None, **extra):
     if attrib is None:
         attrib = dict()
     return etree.SubElement(pelm, qname(tag), attrib, **extra)
 
 
-def is_selection_node (felm):
+def is_selection_node(felm):
     ftext = felm.text
     return ftext is None or not ftext.strip()
 
 
-def filter_tag_match (filter_tag, elm_tag):
+def filter_tag_match(filter_tag, elm_tag):
     fqname = etree.QName(filter_tag)
     eqname = qname(elm_tag)
     if not fqname.namespace:
@@ -67,7 +67,7 @@ def filter_tag_match (filter_tag, elm_tag):
     return fqname == eqname
 
 
-def filter_node_match_no_value (filter_node, match_elm):
+def filter_node_match_no_value(filter_node, match_elm):
     # First check to see if tag matches.
     if not filter_tag_match(filter_node.tag, match_elm.tag):
         return False
@@ -80,7 +80,7 @@ def filter_node_match_no_value (filter_node, match_elm):
     return True
 
 
-def filter_node_match (filter_node, match_elm):
+def filter_node_match(filter_node, match_elm):
     """Given a filter node element and a nodename and attribute dictionary
     return true if the filter element matches the elmname, attributes and value
     (if not None).
@@ -104,7 +104,7 @@ def filter_node_match (filter_node, match_elm):
     return ftext == match_elm.text
 
 
-def filter_leaf_values (fcontain_elm, dest_node, leaf_elms, append_to):
+def filter_leaf_values(fcontain_elm, dest_node, leaf_elms, append_to):
     """Given a containment element (or None) verify that all leaf elements
     in leaf_elms either match, have corresponding selection nodes (empty)
     or are not present.
@@ -173,7 +173,7 @@ def filter_leaf_values (fcontain_elm, dest_node, leaf_elms, append_to):
     return othernodes
 
 
-def filter_containment_iter (fcontain_elm, dest_node, containment_nodes, leaf_elms, append_to):
+def filter_containment_iter(fcontain_elm, dest_node, containment_nodes, leaf_elms, append_to):
     """Given a containment filter node (or None) verify that all leaf elements
     either match, have corresponding selection nodes (empty) or are not present.
 
@@ -218,14 +218,14 @@ def filter_containment_iter (fcontain_elm, dest_node, containment_nodes, leaf_el
                         yield felm, copy.copy(node), dest_node
 
 
-def filter_leaf_allows_add (filter_elm, tag, data, value):
+def filter_leaf_allows_add(filter_elm, tag, data, value):
     if filter_leaf_allows(filter_elm, tag, value):
         data.append(leaf_elm(tag, value))
         return True
     return False
 
 
-def filter_leaf_allows (filter_elm, xpath, value):
+def filter_leaf_allows(filter_elm, xpath, value):
     """Check the value at the xpath specified leaf matches the value.
 
     - If filter_elm is None then allow.
@@ -257,8 +257,9 @@ def filter_leaf_allows (filter_elm, xpath, value):
     return False
 
 
-def filter_list_iter (filter_list, key_xpath, keys):
-    """Return key, elm pairs that are allowed by keys using the values found using the given key_xpath"""
+def filter_list_iter(filter_list, key_xpath, keys):
+    """Return key, elm pairs that are allowed by keys using the values found using
+    the given key_xpath"""
     # If we have no filter elm then return all keys.
     if filter_list is None:
         for key in keys:
@@ -266,14 +267,14 @@ def filter_list_iter (filter_list, key_xpath, keys):
 
     try:
         # If this an element then make it a list of elements
-        filter_list.xpath                                   # pylint: disable=W0104
-        filter_list = [ filter_list ]
+        filter_list.xpath  # pylint: disable=W0104
+        filter_list = [filter_list]
     except AttributeError:
         pass
 
     for filter_elm in filter_list:
-        filter_elms = [ x for x in filter_elm.xpath(key_xpath, namespaces=NSMAP) ]
-        filter_keys = [ x.text for x in filter_elms ]
+        filter_elms = [x for x in filter_elm.xpath(key_xpath, namespaces=NSMAP)]
+        filter_keys = [x.text for x in filter_elms]
         if not filter_keys:
             for key in keys:
                 yield key, filter_elm

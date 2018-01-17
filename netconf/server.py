@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # February 19 2015, Christian Hopps <chopps@gmail.com>
 #
@@ -33,7 +33,7 @@ from netconf import qmap
 from netconf import util
 
 if sys.platform == 'win32' and sys.version_info < (3, 5):
-    import backports.socketpair             # pylint: disable=E0401,W0611
+    import backports.socketpair  # pylint: disable=E0401,W0611
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,8 @@ except ImportError:
     have_pam = False
 
 
-class SSHAuthController (ssh.ServerInterface):
-    def __init__ (self, users=None):
+class SSHAuthController(ssh.ServerInterface):
+    def __init__(self, users=None):
         self.event = threading.Event()
         self.users = users
         self.users_keys = {}
@@ -54,7 +54,7 @@ class SSHAuthController (ssh.ServerInterface):
         else:
             self.pam = None
 
-    def get_user_auth_keys (self, username):
+    def get_user_auth_keys(self, username):
         """Parse the users's authorized_keys file if any to look for authorized keys"""
         if username in self.users_keys:
             return self.users_keys[username]
@@ -74,11 +74,11 @@ class SSHAuthController (ssh.ServerInterface):
                 line = line.strip()
                 if not line or line.startswith("#"):
                     continue
-                values = [ x.strip() for x in line.split() ]
+                values = [x.strip() for x in line.split()]
 
                 exp = None
                 try:
-                    int(values[0])      # bits value?
+                    int(values[0])  # bits value?
                 except ValueError:
                     # Type 1 or type 2, type 1 is bits in second value
                     options_ktype = values[0]
@@ -113,10 +113,10 @@ class SSHAuthController (ssh.ServerInterface):
                         self.users_keys[username].append(key)
         return self.users_keys[username]
 
-    def get_allowed_auths (self, username):
+    def get_allowed_auths(self, username):
         # This is only called after the user fails some other authentication type.
         if self.users is None:
-            users = [ username ]
+            users = [username]
         else:
             users = self.users
         allowed = []
@@ -131,18 +131,18 @@ class SSHAuthController (ssh.ServerInterface):
         logger.debug("Allowed methods for user %s: %s", str(username), allowed)
         return allowed
 
-    def check_auth_none (self, unused_username):
+    def check_auth_none(self, unused_username):
         return ssh.AUTH_FAILED
 
-    def check_auth_publickey (self, username, offered_key):
+    def check_auth_publickey(self, username, key):
         if not self.get_user_auth_keys(username):
             return ssh.AUTH_FAILED
         for ukey in self.users_keys[username]:
-            if ukey == offered_key:
+            if ukey == key:
                 return ssh.AUTH_SUCCESSFUL
         return ssh.AUTH_FAILED
 
-    def check_auth_password (self, username, password):
+    def check_auth_password(self, username, password):
         # Don't allow empty user or empty passwords
         if not username or not password:
             return ssh.AUTH_FAILED
@@ -150,49 +150,50 @@ class SSHAuthController (ssh.ServerInterface):
             return ssh.AUTH_SUCCESSFUL
         return ssh.AUTH_FAILED
 
-    def check_channel_request (self, kind, channel):
+    def check_channel_request(self, kind, chanid):
         if kind == "session":
             return ssh.OPEN_SUCCEEDED
         return ssh.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
-    def check_channel_subsystem_request (self, channel, name):
+    def check_channel_subsystem_request(self, channel, name):
         self.event.set()
         return name == "netconf"
 
 
-class SSHUserPassController (ssh.ServerInterface):
-    def __init__ (self, username=None, password=None):
+class SSHUserPassController(ssh.ServerInterface):
+    def __init__(self, username=None, password=None):
         self.username = username
         self.password = password
         self.event = threading.Event()
 
-    def get_allowed_auths (self, unused_username):
+    def get_allowed_auths(self, username):
+        del username  # unused
         return "password"
 
-    def check_auth_none (self, unused_username):
+    def check_auth_none(self, username):
+        del username  # unused
         return ssh.AUTH_FAILED
 
-    def check_auth_password (self, username, password):
+    def check_auth_password(self, username, password):
         if self.username == username and self.password == password:
             return ssh.AUTH_SUCCESSFUL
         return ssh.AUTH_FAILED
 
-    def check_channel_request (self, kind, channel):
+    def check_channel_request(self, kind, chanid):
         if kind == "session":
             return ssh.OPEN_SUCCEEDED
         return ssh.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
-    def check_channel_subsystem_request (self, channel, name):
+    def check_channel_subsystem_request(self, channel, name):
         self.event.set()
         return name == "netconf"
 
 
-class NetconfServerSession (base.NetconfSession):
+class NetconfServerSession(base.NetconfSession):
     """Netconf Server-side Session Protocol"""
-    handled_rpc_methods = set(["close-session",
-                               "kill-session"])
+    handled_rpc_methods = set(["close-session", "kill-session"])
 
-    def __init__ (self, channel, server, unused_extra_args, debug):
+    def __init__(self, channel, server, unused_extra_args, debug):
         self.server = server
 
         sid = server.allocate_session_id()
@@ -206,14 +207,14 @@ class NetconfServerSession (base.NetconfSession):
         if self.debug:
             logger.debug("%s: Client session-id %s created", str(self), str(sid))
 
-    def __del__ (self):
+    def __del__(self):
         self.close()
         super(NetconfServerSession, self).__del__()
 
-    def __str__ (self):
+    def __str__(self):
         return "NetconfServerSession(sid:{})".format(self.session_id)
 
-    def close (self):
+    def close(self):
         # XXX should be invoking a method in self.methods?
         if self.debug:
             logger.debug("%s: Closing.", str(self))
@@ -227,10 +228,10 @@ class NetconfServerSession (base.NetconfSession):
         if self.debug:
             logger.debug("%s: Closed.", str(self))
 
-    def send_rpc_reply (self, rpc_reply, origmsg):
+    def send_rpc_reply(self, rpc_reply, origmsg):
         reply = etree.Element(qmap('nc') + "rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
         try:
-            rpc_reply.getchildren                           # pylint: disable=W0104
+            rpc_reply.getchildren  # pylint: disable=W0104
             reply.append(rpc_reply)
         except AttributeError:
             reply.extend(rpc_reply)
@@ -239,21 +240,21 @@ class NetconfServerSession (base.NetconfSession):
             logger.debug("%s: Sending RPC-Reply: %s", str(self), str(ucode))
         self.send_message(ucode)
 
-    def send_rpc_reply_error (self, error):
+    def send_rpc_reply_error(self, error):
         self.send_message(error.get_reply_msg())
 
-    def _rpc_not_implemented (self, unused_session, rpc, *unused_params):
+    def _rpc_not_implemented(self, unused_session, rpc, *unused_params):
         if self.debug:
             msg_id = rpc.get('message-id')
             logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
-    def reader_exits (self):
+    def reader_exits(self):
         if self.debug:
             logger.debug("%s: Reader thread exited.", str(self))
         return
 
-    def reader_handle_message (self, msg):
+    def reader_handle_message(self, msg):
         """Handle a message, lock is already held"""
         if not self.session_open:
             return
@@ -294,10 +295,7 @@ class NetconfServerSession (base.NetconfSession):
                 paramslen = len(params)
 
                 if self.debug:
-                    logger.debug("%s: RPC: %s: paramslen: %s",
-                                 str(self),
-                                 rpcname,
-                                 str(paramslen))
+                    logger.debug("%s: RPC: %s: paramslen: %s", str(self), rpcname, str(paramslen))
 
                 if rpcname == "close-session":
                     # XXX should be RPC-unlocking if need be
@@ -324,7 +322,7 @@ class NetconfServerSession (base.NetconfSession):
                     if params and not util.filter_tag_match(params[0], "nc:filter"):
                         raise ncerror.RPCSvrUnknownElement(rpc, params[0])
                     if not params:
-                        params = [ None ]
+                        params = [None]
                 elif rpcname == "get-config":
                     # Validate GET-CONFIG parameters
 
@@ -341,7 +339,7 @@ class NetconfServerSession (base.NetconfSession):
                         if filter_param is None:
                             unknown_elm = params[0] if params[0] != source_param else params[1]
                             raise ncerror.RPCSvrUnknownElement(rpc, unknown_elm)
-                    params = [ source_param, filter_param ]
+                    params = [source_param, filter_param]
 
                 #------------------
                 # Call the method.
@@ -379,34 +377,30 @@ class NetconfServerSession (base.NetconfSession):
                     logger.debug("%s: Got EOF in reader_handle_message", str(self))
                 error = ncerror.RPCSvrException(rpc, EOFError("EOF"))
                 self.send_message(error.get_reply_msg())
-            except EOFError:
-                if self.debug:
-                    logger.debug("Got EOF in reader_handle_message")
             except Exception as exception:
                 if self.debug:
                     logger.debug("%s: Got unexpected exception in reader_handle_message: %s",
-                                 str(self),
-                                 str(exception))
+                                 str(self), str(exception))
                 error = ncerror.RPCSvrException(rpc, exception)
                 self.send_message(error.get_reply_msg())
 
 
-class NetconfMethods (object):
+class NetconfMethods(object):
     """This is an abstract class that is used to document the server methods functionality
 
     The server return not-implemented if the method is not found in the methods object,
     so feel free to use duck-typing here (i.e., no need to inherit)
     """
 
-    def nc_append_capabilities (self, capabilities):        # pylint: disable=W0613
+    def nc_append_capabilities(self, capabilities):  # pylint: disable=W0613
         """The server should append any capabilities it supports to capabilities"""
         return
 
-    def rpc_get (self, session, rpc, filter_or_none):       # pylint: disable=W0613
+    def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
         """Passed the filter element or None if not present"""
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
-    def rpc_get_config (self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
+    def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         """Passed the source element"""
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
@@ -416,37 +410,33 @@ class NetconfMethods (object):
     #---------------------------------------------------------------------------
 
     # XXX The API WILL CHANGE consider unfinished
-    def rpc_copy_config (self, unused_session, rpc, *unused_params):
+    def rpc_copy_config(self, unused_session, rpc, *unused_params):
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
-    def rpc_delete_config (self, unused_session, rpc, *unused_params):
+    def rpc_delete_config(self, unused_session, rpc, *unused_params):
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
-    def rpc_edit_config (self, unused_session, rpc, *unused_params):
+    def rpc_edit_config(self, unused_session, rpc, *unused_params):
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
-    def rpc_lock (self, unused_session, rpc, *unused_params):
+    def rpc_lock(self, unused_session, rpc, *unused_params):
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
-    def rpc_unlock (self, unused_session, rpc, *unused_params):
+    def rpc_unlock(self, unused_session, rpc, *unused_params):
         raise ncerror.RPCSvrErrNotImpl(rpc)
 
 
-class NetconfSSHServer (sshutil.server.SSHServer):
+class NetconfSSHServer(sshutil.server.SSHServer):
     """A netconf server"""
-    def __del__ (self):
+
+    def __del__(self):
         logger.error("Deleting %s", str(self))
 
-    def __init__ (self,
-                  server_ctl=None,
-                  server_methods=None,
-                  port=830,
-                  host_key=None,
-                  debug=False):
+    def __init__(self, server_ctl=None, server_methods=None, port=830, host_key=None, debug=False):
         """
         server_methods is a an object that implements the Netconf RPC methods
         for the server. The method names are "rpc_X" where X is the netconf method
@@ -454,19 +444,20 @@ class NetconfSSHServer (sshutil.server.SSHServer):
         """
         self.server_methods = server_methods if server_methods is not None else NetconfMethods()
         self.session_id = 1
-        super(NetconfSSHServer, self).__init__(server_ctl,
-                                               server_session_class=NetconfServerSession,
-                                               port=port,
-                                               host_key=host_key,
-                                               debug=debug)
+        super(NetconfSSHServer, self).__init__(
+            server_ctl,
+            server_session_class=NetconfServerSession,
+            port=port,
+            host_key=host_key,
+            debug=debug)
 
-    def allocate_session_id (self):
+    def allocate_session_id(self):
         with self.lock:
             sid = self.session_id
             self.session_id += 1
             return sid
 
-    def __str__ (self):
+    def __str__(self):
         return "NetconfSSHServer(port={})".format(self.port)
 
 

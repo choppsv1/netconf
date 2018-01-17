@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # February 19 2015, Christian Hopps <chopps@gmail.com>
 #
@@ -21,31 +21,31 @@ import logging
 import io
 import threading
 import socket
+
 import sshutil.conn
-import time
 from lxml import etree
 from monotonic import monotonic
 from netconf import NSMAP
 from netconf.base import NetconfSession
-from netconf.error import RPCError, SessionError
-
+from netconf.error import RPCError, SessionError, ReplyTimeoutError
 
 logger = logging.getLogger(__name__)
 
-class Timeout (object):
-    def __init__ (self, timeout):
+
+class Timeout(object):
+    def __init__(self, timeout):
         self.start_time = monotonic()
         if timeout is None:
             self.end_time = None
         else:
             self.end_time = self.start_time + timeout
 
-    def is_expired (self):
+    def is_expired(self):
         if self.end_time is None:
             return False
         return self.end_time < monotonic()
 
-    def remaining (self):
+    def remaining(self):
         if self.end_time is None:
             return None
         ctime = monotonic()
@@ -55,9 +55,10 @@ class Timeout (object):
             return self.end_time - ctime
 
 
-class NetconfClientSession (NetconfSession):
+class NetconfClientSession(NetconfSession):
     """Netconf Protocol"""
-    def __init__ (self, stream, debug=False):
+
+    def __init__(self, stream, debug=False):
         super(NetconfClientSession, self).__init__(stream, debug, None)
         self.message_id = 0
         self.closing = False
@@ -68,10 +69,10 @@ class NetconfClientSession (NetconfSession):
 
         super(NetconfClientSession, self)._open_session(False)
 
-    def __str__ (self):
+    def __str__(self):
         return "NetconfClientSession(sid:{})".format(self.session_id)
 
-    def close (self):
+    def close(self):
         if self.debug:
             logger.debug("%s: Closing session.", str(self))
 
@@ -95,7 +96,7 @@ class NetconfClientSession (NetconfSession):
         if self.debug:
             logger.debug("%s: Closed: %s", str(self), str(reply))
 
-    def send_rpc_async (self, rpc, noreply=False):
+    def send_rpc_async(self, rpc, noreply=False):
 
         # Get the next message id
         with self.cv:
@@ -106,9 +107,8 @@ class NetconfClientSession (NetconfSession):
         if self.debug:
             logger.debug("%s: Sending RPC message-id: %s", str(self), str(msg_id))
 
-        def sendit ():
-            self.send_message(
-                """<rpc message-id="{}"
+        def sendit():
+            self.send_message("""<rpc message-id="{}"
                 xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">{}</rpc>""".format(msg_id, rpc))
 
         if noreply:
@@ -122,18 +122,18 @@ class NetconfClientSession (NetconfSession):
 
         return msg_id
 
-    def send_rpc (self, rpc, timeout=None):
+    def send_rpc(self, rpc, timeout=None):
         msg_id = self.send_rpc_async(rpc)
         return self.wait_reply(msg_id, timeout)
 
-    def is_reply_ready (self, msg_id):
+    def is_reply_ready(self, msg_id):
         """Check whether reply is ready (or session closed)"""
         with self.cv:
             if not self.is_active():
                 raise SessionError("Session closed while checking for reply")
             return self.rpc_out[msg_id] is not None
 
-    def wait_reply (self, msg_id, timeout=None):
+    def wait_reply(self, msg_id, timeout=None):
         assert msg_id in self.rpc_out
 
         check_timeout = Timeout(timeout)
@@ -148,8 +148,9 @@ class NetconfClientSession (NetconfSession):
                 break
 
             if check_timeout.is_expired():
-                raise TimeoutError("Timeout ({}s) while waiting for RPC reply to msg-id: {}".format(
-                    timeout, msg_id))
+                raise ReplyTimeoutError(
+                    "Timeout ({}s) while waiting for RPC reply to msg-id: {}".format(
+                        timeout, msg_id))
 
         if not self.is_active():
             self.cv.release()
@@ -167,13 +168,13 @@ class NetconfClientSession (NetconfSession):
         # ok = reply.xpath("nc:ok", namespaces=self.nsmap)
         return tree, reply, msg
 
-    def reader_exits (self):
+    def reader_exits(self):
         if self.debug:
             logger.debug("%s: Reader thread exited notifying all.", str(self))
         with self.cv:
             self.cv.notify_all()
 
-    def reader_handle_message (self, msg):
+    def reader_handle_message(self, msg):
         """Handle a message, lock is already held"""
         try:
             tree = etree.parse(io.BytesIO(msg.encode('utf-8')))
@@ -202,43 +203,38 @@ class NetconfClientSession (NetconfSession):
                 try:
                     if msg_id not in self.rpc_out:
                         if self.debug:
-                            logger.debug("Ignoring unwanted reply for message-id %s",
-                                         str(msg_id))
+                            logger.debug("Ignoring unwanted reply for message-id %s", str(msg_id))
                         return
                     elif self.rpc_out[msg_id] is not None:
                         logger.warning("Received multiple replies for message-id %s:"
-                                       " before: %s now: %s",
-                                       str(msg_id),
-                                       str(self.rpc_out[msg_id]),
-                                       str(msg))
+                                       " before: %s now: %s", str(msg_id), str(
+                                           self.rpc_out[msg_id]), str(msg))
 
                     if self.debug:
-                        logger.debug("%s: Received rpc-reply message-id: %s",
-                                     str(self),
+                        logger.debug("%s: Received rpc-reply message-id: %s", str(self),
                                      str(msg_id))
                     self.rpc_out[msg_id] = tree, reply, msg
                 except Exception as error:
-                    logger.debug("%s: Unexpected exception: %s",
-                                 str(self),
-                                 str(error))
+                    logger.debug("%s: Unexpected exception: %s", str(self), str(error))
                     raise
                 finally:
                     self.cv.notify_all()
 
 
-class NetconfSSHSession (NetconfClientSession):
-    def __init__ (self, host, port=830, username=None, password=None, debug=False, cache=None, proxycmd=None):
+class NetconfSSHSession(NetconfClientSession):
+    def __init__(self,
+                 host,
+                 port=830,
+                 username=None,
+                 password=None,
+                 debug=False,
+                 cache=None,
+                 proxycmd=None):
         if username is None:
             import getpass
             username = getpass.getuser()
-        stream = sshutil.conn.SSHClientSession(host,
-                                               port,
-                                               "netconf",
-                                               username,
-                                               password,
-                                               debug,
-                                               cache=cache,
-                                               proxycmd=proxycmd)
+        stream = sshutil.conn.SSHClientSession(
+            host, port, "netconf", username, password, debug, cache=cache, proxycmd=proxycmd)
         super(NetconfSSHSession, self).__init__(stream, debug)
 
 

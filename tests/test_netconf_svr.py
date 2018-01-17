@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # February 17 2015, Christian Hopps <chopps@gmail.com>
 #
@@ -38,18 +38,23 @@ SERVER_DEBUG = True
 CLIENT_DEBUG = True
 
 
-class NetconfMethods (server.NetconfMethods):
-    def rpc_get (self, unused_session, rpc, *unused_params):
+class NetconfMethods(server.NetconfMethods):
+    def rpc_get(self, session, rpc, filter_or_none):
+        del session  # unused
+        del filter_or_none  # unused
         return etree.Element("ok")
 
-    def rpc_get_config (self, unused_session, rpc, *unused_params):
+    def rpc_get_config(self, session, rpc, source_elm, filter_or_none):
+        del session  # unused
+        del source_elm  # unused
+        del filter_or_none  # unused
         return etree.Element("ok")
 
-    def rpc_namespaced (self, unused_session, rpc, *unused_params):
+    def rpc_namespaced(self, unused_session, rpc, *unused_params):
         return etree.Element("ok")
 
 
-def setup_module (unused_module):
+def setup_module(unused_module):
     global nc_server
 
     logging.basicConfig(level=logging.DEBUG)
@@ -57,16 +62,16 @@ def setup_module (unused_module):
     if nc_server is not None:
         logger.error("XXX Called setup_module multiple times")
     else:
-        server_ctl = server.SSHUserPassController(username=getpass.getuser(),
-                                                  password="admin")
-        nc_server = server.NetconfSSHServer(server_ctl=server_ctl,
-                                            server_methods=NetconfMethods(),
-                                            port=NC_PORT,
-                                            host_key="tests/host_key",
-                                            debug=SERVER_DEBUG)
+        server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
+        nc_server = server.NetconfSSHServer(
+            server_ctl=server_ctl,
+            server_methods=NetconfMethods(),
+            port=NC_PORT,
+            host_key="tests/host_key",
+            debug=SERVER_DEBUG)
 
 
-def cleanup_module (unused_module):
+def cleanup_module(unused_module):
     global nc_server
     if nc_server:
         logger.info("Deleting server")
@@ -80,10 +85,8 @@ def cleanup_module (unused_module):
         gc.collect()
 
 
-def test_not_supported ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_not_supported():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = "<foobar/>"
@@ -95,23 +98,20 @@ def test_not_supported ():
         logger.error("Unexpected success: %s", str(rval))
         assert False
 
-def test_bad_password ():
+
+def test_bad_password():
     try:
-        session = client.NetconfSSHSession("127.0.0.1",
-                                           password="badpass",
-                                           port=nc_server.port)
-    except ssh.AuthenticationException as error:
+        session = client.NetconfSSHSession("127.0.0.1", password="badpass", port=nc_server.port)
+    except ssh.AuthenticationException:
         pass
     else:
         logger.error("Unexpected success: %s", str(session))
         assert False
 
 
-def test_namespaced_rpc ():
+def test_namespaced_rpc():
     """TEST: Checked that namespaced RPCs work."""
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = '<namespaced xmlns="some:namespace:1.0"></namespaced>'
@@ -122,10 +122,8 @@ def test_namespaced_rpc ():
     session.close()
 
 
-def test_malformed ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_malformed():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = "<get><foobar/></get><get/>"
@@ -139,11 +137,9 @@ def test_malformed ():
 
 
 # XXX this hangs the server!
-def test_malformed_2 ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port,
-                                       debug=CLIENT_DEBUG)
+def test_malformed_2():
+    session = client.NetconfSSHSession(
+        "127.0.0.1", password="admin", port=nc_server.port, debug=CLIENT_DEBUG)
     assert session
 
     query = "</foobar>"
@@ -160,10 +156,8 @@ def test_malformed_2 ():
         assert False
 
 
-def test_get ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_get():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = "<get><filter><status/></filter></get>"
@@ -173,10 +167,8 @@ def test_get ():
     session.close()
 
 
-def test_get_config ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_get_config():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = "<get-config><source><running/></source></get-config>"
@@ -186,10 +178,8 @@ def test_get_config ():
     session.close()
 
 
-def test_get_config_with_filter ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_get_config_with_filter():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = "<get-config><source><running/></source><filter><foobar/></filter></get-config>"
@@ -198,10 +188,8 @@ def test_get_config_with_filter ():
     session.close()
 
 
-def test_get_config_missing_source ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_get_config_missing_source():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = "<get-config></get-config>"
@@ -215,10 +203,8 @@ def test_get_config_missing_source ():
     session.close()
 
 
-def test_get_config_with_non_filter ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_get_config_with_non_filter():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
 
     query = """<get-config><source><running/></source><foobar/></get-config>"""
@@ -232,48 +218,40 @@ def test_get_config_with_non_filter ():
     session.close()
 
 
-def test_close ():
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=nc_server.port)
+def test_close():
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
     session.close()
 
 
-def test_multi_session ():
+def test_multi_session():
     sessions = []
     for unused in range(0, 10):
-        sessions.append(client.NetconfSSHSession("127.0.0.1",
-                                                 password="admin",
-                                                 port=nc_server.port))
+        sessions.append(
+            client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port))
 
 
-def test_server_close ():
-    server_ctl = server.SSHUserPassController(username=getpass.getuser(),
-                                              password="admin")
+def test_server_close():
+    server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
     port = None
     LAST_INDEX = 40000 + 5000
     for port in range(40000, LAST_INDEX + 1):
         try:
             logger.info("Create server on port %d", port)
-            ns = server.NetconfSSHServer(server_ctl=server_ctl,
-                                         server_methods=NetconfMethods(),
-                                         port=port,
-                                         host_key="tests/host_key",
-                                         debug=SERVER_DEBUG)
+            ns = server.NetconfSSHServer(
+                server_ctl=server_ctl,
+                server_methods=NetconfMethods(),
+                port=port,
+                host_key="tests/host_key",
+                debug=SERVER_DEBUG)
             break
         except socket.error as error:
-            logger.info("Got exception: %s %d %d", str(error),
-                        error.errno,
-                        errno.EADDRINUSE)
+            logger.info("Got exception: %s %d %d", str(error), error.errno, errno.EADDRINUSE)
             if error.errno != errno.EADDRINUSE or port == LAST_INDEX:
                 raise
 
     logger.info("Connect to server on port %d", port)
-    session = client.NetconfSSHSession("127.0.0.1",
-                                       password="admin",
-                                       port=port,
-                                       debug=CLIENT_DEBUG)
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
     session.close()
     # NetconfSSHSession.flush()
 
@@ -287,17 +265,16 @@ def test_server_close ():
 
     for i in range(0, 10):
         logger.debug("Starting %d iteration", i)
-        ns = server.NetconfSSHServer(server_ctl=server_ctl,
-                                     server_methods=NetconfMethods(),
-                                     port=port,
-                                     host_key="tests/host_key",
-                                     debug=SERVER_DEBUG)
+        ns = server.NetconfSSHServer(
+            server_ctl=server_ctl,
+            server_methods=NetconfMethods(),
+            port=port,
+            host_key="tests/host_key",
+            debug=SERVER_DEBUG)
 
         logger.info("Connect to server on port %d", port)
-        session = client.NetconfSSHSession("127.0.0.1",
-                                           password="admin",
-                                           port=port,
-                                           debug=CLIENT_DEBUG)
+        session = client.NetconfSSHSession(
+            "127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
         session.close()
         # NetconfSSHSession.flush()
 
@@ -308,44 +285,44 @@ def test_server_close ():
     logger.debug("Test Complete")
 
 
-def _test_multi_open (client_cache):
+def _test_multi_open(client_cache):
 
     logger.info("Create Server")
-    server_ctl = server.SSHUserPassController(username=getpass.getuser(),
-                                              password="admin")
-    ns = server.NetconfSSHServer(server_ctl=server_ctl,
-                                 server_methods=NetconfMethods(),
-                                 port=NC_PORT,
-                                 host_key="tests/host_key",
-                                 debug=SERVER_DEBUG)
+    server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
+    ns = server.NetconfSSHServer(
+        server_ctl=server_ctl,
+        server_methods=NetconfMethods(),
+        port=NC_PORT,
+        host_key="tests/host_key",
+        debug=SERVER_DEBUG)
     port = ns.port
 
     logger.info("Open sessions")
-    sessions = [ client.NetconfSSHSession("127.0.0.1",
-                                          password="admin",
-                                          port=port,
-                                          debug=CLIENT_DEBUG,
-                                          cache=client_cache) for unused in range(0, 25) ]
+    sessions = [
+        client.NetconfSSHSession(
+            "127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG, cache=client_cache)
+        for unused in range(0, 25)
+    ]
 
     logger.info("Close sessions")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1",
-                                          password="admin",
-                                          port=port,
-                                          debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [
+        client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
+        for unused in range(0, 25)
+    ]
 
     logger.info("Closeing")
     for session in sessions:
         session.close()
 
     logger.info("Reopening")
-    sessions = [ client.NetconfSSHSession("127.0.0.1",
-                                          password="admin",
-                                          port=port,
-                                          debug=CLIENT_DEBUG) for unused in range(0, 25) ]
+    sessions = [
+        client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
+        for unused in range(0, 25)
+    ]
     logger.info("Reclosing")
     for session in sessions:
         session.close()
@@ -361,11 +338,11 @@ def _test_multi_open (client_cache):
     del server_ctl
 
 
-def test_multi_open_no_cache ():
+def test_multi_open_no_cache():
     _test_multi_open(None)
 
 
-def test_multi_open_cache ():
+def test_multi_open_cache():
     from sshutil.cache import SSHConnectionCache
     _test_multi_open(SSHConnectionCache("test multi open cache"))
 

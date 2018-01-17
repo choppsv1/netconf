@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # February 19 2015, Christian Hopps <chopps@gmail.com>
 #
@@ -24,11 +24,10 @@ import sys
 import threading
 import traceback
 from lxml import etree
-from lxml.builder import E
 
 from netconf import NSMAP, MAXSSHBUF
 from netconf.error import ChannelClosed, FramingError, SessionError
-from netconf.util import elm
+import netconf.util as ncutil
 
 logger = logging.getLogger(__name__)
 
@@ -37,26 +36,28 @@ NC_BASE_11 = "urn:ietf:params:netconf:base:1.1"
 XML_HEADER = """<?xml version="1.0" encoding="UTF-8"?>"""
 
 if sys.version_info[0] >= 3:
+
     def lookahead(iterable):
         """Return an element and an indication if it's the last element"""
         i = iter(iterable)
         last = next(i)
-        for elm in i:
+        for e in i:
             yield last, False
-            last = elm
+            last = e
         yield last, True
 else:
+
     def lookahead(iterable):
         """Return an element and an indication if it's the last element"""
         i = iter(iterable)
         last = i.next()
-        for elm in i:
+        for e in i:
             yield last, False
-            last = elm
+            last = e
         yield last, True
 
 
-def chunkit (msg, maxsend, minsend=0, pad="\n"):
+def chunkit(msg, maxsend, minsend=0, pad="\n"):
     """
     chunkit iterates over a msg returning chunks of at most maxsend
     size, and of at least minsend size if non-zero. Padding will be
@@ -105,35 +106,36 @@ def chunkit (msg, maxsend, minsend=0, pad="\n"):
     yield msg[right:]
 
 
-class NetconfTransportMixin (object):
-    def connect (self):
+class NetconfTransportMixin(object):
+    def connect(self):
         raise NotImplementedError()
 
-    def close (self):
-        raise NotImplementedError()
-
-
-class NetconfPacketTransport (object):
-    def send_pdu (self, content, new_framing):
-        raise NotImplementedError()
-
-    def receive_pdu (self, new_framing):
+    def close(self):
         raise NotImplementedError()
 
 
-class NetconfFramingTransport (NetconfPacketTransport):
+class NetconfPacketTransport(object):
+    def send_pdu(self, msg, new_framing):
+        raise NotImplementedError()
+
+    def receive_pdu(self, new_framing):
+        raise NotImplementedError()
+
+
+class NetconfFramingTransport(NetconfPacketTransport):
     """Packetize an ssh stream into netconf PDUs -- doesn't need to be SSH specific"""
-    def __init__ (self, stream, max_chunk, debug):
+
+    def __init__(self, stream, max_chunk, debug):
         # XXX we have 2 channels defined one here and one in the connect/accept class
         self.stream = stream
         self.max_chunk = max_chunk
         self.debug = debug
         self.rbuffer = b""
 
-    def __del__ (self):
+    def __del__(self):
         self.close()
 
-    def close (self):
+    def close(self):
         stream = self.stream
         if stream is not None:
             self.stream = None
@@ -141,7 +143,7 @@ class NetconfFramingTransport (NetconfPacketTransport):
                 logger.debug("Closing netconf socket stream %s", str(stream))
             stream.close()
 
-    def is_active (self):
+    def is_active(self):
         try:
             self.stream.is_active
         except AttributeError:
@@ -152,14 +154,14 @@ class NetconfFramingTransport (NetconfPacketTransport):
         else:
             return self.stream.is_active()
 
-    def receive_pdu (self, new_framing):
+    def receive_pdu(self, new_framing):
         assert self.stream is not None
         if new_framing:
             return self._receive_11()
         else:
             return self._receive_10()
 
-    def send_pdu (self, msg, new_framing):
+    def send_pdu(self, msg, new_framing):
         assert self.stream is not None
         if new_framing:
             bmsg = msg.encode('utf-8')
@@ -172,7 +174,7 @@ class NetconfFramingTransport (NetconfPacketTransport):
         for chunk in chunkit(msg, self.max_chunk, 64):
             self.stream.sendall(chunk)
 
-    def _receive_10 (self):
+    def _receive_10(self):
         searchfrom = 0
         while True:
             eomidx = self.rbuffer.find(b"]]>]]>", searchfrom)
@@ -186,7 +188,7 @@ class NetconfFramingTransport (NetconfPacketTransport):
         self.rbuffer = self.rbuffer[eomidx + 6:]
         return msg.decode('utf-8')
 
-    def _receive_chunk (self):
+    def _receive_chunk(self):
         blen = len(self.rbuffer)
         while blen < 4:
             buf = self.stream.recv(self.max_chunk)
@@ -240,27 +242,27 @@ class NetconfFramingTransport (NetconfPacketTransport):
                 return chunk
             self.rbuffer += self.stream.recv(self.max_chunk)
 
-    def _iter_receive_chunks (self):
+    def _iter_receive_chunks(self):
         assert self.stream is not None
         chunk = self._receive_chunk()
         while chunk:
             yield chunk
             chunk = self._receive_chunk()
 
-    def _receive_11 (self):
+    def _receive_11(self):
         assert self.stream is not None
         data = b"".join([x for x in self._iter_receive_chunks()])
         return data.decode('utf-8')
 
 
-class NetconfSession (object):
+class NetconfSession(object):
     """Netconf Protocol Server and Client"""
 
     # This class is almost idntical to sshutil.SSHServerSession We need to
     # figure a way to factor the commonality. One issue is that this class can
     # be used with any transport not just SSH so where should it go?
 
-    def __init__ (self, stream, debug, session_id, max_chunk=MAXSSHBUF):
+    def __init__(self, stream, debug, session_id, max_chunk=MAXSSHBUF):
         self.debug = debug
         self.pkt_stream = NetconfFramingTransport(stream, max_chunk, debug)
         self.new_framing = False
@@ -270,25 +272,25 @@ class NetconfSession (object):
         self.session_id = session_id
         self.session_open = False
 
-    def __del__ (self):
+    def __del__(self):
         if hasattr(self, "session_open") and self.session_open:
             self.close()
 
-    def is_active (self):
+    def is_active(self):
         with self.lock:
             return self.pkt_stream and self.pkt_stream.is_active()
 
-    def __str__ (self):
+    def __str__(self):
         return "NetconfSession(sid:{})".format(self.session_id)
 
-    def send_message (self, msg):
+    def send_message(self, msg):
         with self.lock:
             pkt_stream = self.pkt_stream
         if self.debug:
             logger.debug("Sending message (%d): %s", len(msg), msg)
         pkt_stream.send_pdu(XML_HEADER + msg, self.new_framing)
 
-    def _receive_message (self):
+    def _receive_message(self):
         # private method to receive a full message.
         with self.lock:
             if self.reader_thread and not self.reader_thread.keep_running:
@@ -296,22 +298,24 @@ class NetconfSession (object):
             pkt_stream = self.pkt_stream
         return pkt_stream.receive_pdu(self.new_framing)
 
-    def send_hello (self, caplist, session_id=None):
-        msg = elm("hello", attrib={'xmlns': NSMAP['nc']})
-        caps = E.capabilities(*[E.capability(x) for x in caplist])
+    def send_hello(self, caplist, session_id=None):
+        msg = ncutil.elm("hello", attrib={'xmlns': NSMAP['nc']})
+        caps = ncutil.elm("capabilities")
+        for cap in caplist:
+            ncutil.subelm(caps, "capability").text = str(cap)
         if session_id is not None:
             assert hasattr(self, "methods")
-            self.methods.nc_append_capabilities(caps)       # pylint: disable=E1101
+            self.methods.nc_append_capabilities(caps)  # pylint: disable=E1101
         msg.append(caps)
 
         if self.debug:
             logger.debug("%s: Sending HELLO", str(self))
         if session_id is not None:
-            msg.append(E("session-id", str(session_id)))
+            msg.append(ncutil.leaf_elm("session-id", str(session_id)))
         msg = etree.tostring(msg)
         self.send_message(msg.decode('utf-8'))
 
-    def close (self):
+    def close(self):
         if self.debug:
             logger.debug("%s: Closing.", str(self))
 
@@ -334,7 +338,7 @@ class NetconfSession (object):
                     # If we are blocked on reading this should unblock us
                     pkt_stream.close()
 
-    def _open_session (self, is_server):
+    def _open_session(self, is_server):
         assert is_server or self.session_id is None
 
         # The transport should be connected at this point.
@@ -350,8 +354,7 @@ class NetconfSession (object):
             # Parse reply
             tree = etree.parse(io.BytesIO(reply.encode('utf-8')))
             root = tree.getroot()
-            caps = root.xpath("//nc:hello/nc:capabilities/nc:capability",
-                              namespaces=NSMAP)
+            caps = root.xpath("//nc:hello/nc:capabilities/nc:capability", namespaces=NSMAP)
 
             # Store capabilities
             for cap in caps:
@@ -373,7 +376,7 @@ class NetconfSession (object):
                 if not is_server:
                     raise SessionError("Server didn't supply session-id")
             except ValueError:
-                raise SessionError("Server supplied non integer session-id: {}", session_id)
+                raise SessionError("Server supplied non integer session-id: {}".format(session_id))
 
             self.session_open = True
 
@@ -384,21 +387,22 @@ class NetconfSession (object):
             self.reader_thread.start()
 
             if self.debug:
-                logger.debug("%s: Opened version %s session.", str(self), "1.1" if self.new_framing else "1.0")
+                logger.debug("%s: Opened version %s session.", str(self), "1.1"
+                             if self.new_framing else "1.0")
 
         except Exception:
             self.close()
             raise
 
-    def reader_exits (self):
+    def reader_exits(self):
         # Called from reader thread when our reader thread exits
         raise NotImplementedError("reader_exits")
 
-    def reader_handle_message (self, msg):
+    def reader_handle_message(self, msg):
         # Called from reader thread after receiving a framed message
         raise NotImplementedError("read_handle_message")
 
-    def _read_message_thread (self):
+    def _read_message_thread(self):
         # XXX the locking and dealing with the exit of this thread needs improvement
         if self.debug:
             logger.debug("Starting reader thread.")
@@ -434,15 +438,12 @@ class NetconfSession (object):
         except AttributeError as error:
             # Should we close the session cleanly or just disconnect?
             if "'NoneType' object has no attribute 'recv'" in str(error):
-                logger.error("%s: Session channel cleared (open: %s): %s: %s",
-                             str(self),
-                             str(self.session_open),
-                             str(error),
-                             traceback.format_exc())
+                logger.error("%s: Session channel cleared (open: %s): %s: %s", str(self),
+                             str(self.session_open), str(error), traceback.format_exc())
             else:
-                logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
-                             str(error),
-                             traceback.format_exc())
+                logger.error(
+                    "Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
+                    str(error), traceback.format_exc())
             self.close()
         except ChannelClosed as error:
             # Should we close the session cleanly or just disconnect?
@@ -453,15 +454,13 @@ class NetconfSession (object):
             #                  str(error),
             #                  traceback.format_exc())
             # else:
-            logger.debug("%s: Session channel closed [session_open == %s]: %s",
-                         str(self),
-                         str(self.session_open),
-                         str(error))
+            logger.debug("%s: Session channel closed [session_open == %s]: %s", str(self),
+                         str(self.session_open), str(error))
             try:
                 self.close()
             except Exception as error:
-                logger.debug("%s: Exception while closing during ChannelClosed: %s",
-                             str(self), str(error))
+                logger.debug("%s: Exception while closing during ChannelClosed: %s", str(self),
+                             str(error))
         except SessionError as error:
             # Should we close the session cleanly or just disconnect?
             logger.error("%s Session error [closing session]: %s", str(self), str(error))
@@ -474,13 +473,14 @@ class NetconfSession (object):
             with self.lock:
                 keep_running = reader_thread.keep_running
             if keep_running:
-                logger.error("Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
-                             str(error),
-                             traceback.format_exc())
+                logger.error(
+                    "Unexpected exception in reader thread [disconnecting+exiting]: %s: %s",
+                    str(error), traceback.format_exc())
                 self.close()
             else:
                 # XXX might want to catch errors due to disconnect and not re-raise
-                logger.debug("Exception in reader thread [exiting]: %s: %s", str(error), traceback.format_exc())
+                logger.debug("Exception in reader thread [exiting]: %s: %s", str(error),
+                             traceback.format_exc())
         finally:
             # If we are exiting the read thread we close the session.
             self.reader_exits()

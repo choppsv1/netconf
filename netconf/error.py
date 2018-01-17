@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # February 19 2015, Christian Hopps <chopps@gmail.com>
 #
@@ -21,47 +21,50 @@ from lxml import etree
 from netconf import NSMAP
 
 
-class NetconfException (Exception):
+class NetconfException(Exception):
     pass
 
 
-class ChannelClosed (NetconfException):
+class ChannelClosed(NetconfException):
     pass
 
 
-class FramingError (NetconfException):
+class FramingError(NetconfException):
     pass
 
 
-class SessionError (NetconfException):
+class SessionError(NetconfException):
     pass
 
-class TimeoutError (NetconfException):
+
+class ReplyTimeoutError(NetconfException):
     pass
 
-class RPCError (NetconfException):
-    def __init__ (self, output, tree, error):
+
+class RPCError(NetconfException):
+    def __init__(self, output, tree, error):
         super(RPCError, self).__init__(output)
         self.tree = tree
         self.error = error
 
-    def _get_error_val (self, value):
+    def _get_error_val(self, value):
         try:
             return self.error.xpath("nc:" + value, namespaces=NSMAP)[0].text
         except IndexError:
             return None
 
-    def get_error_tag (self):
+    def get_error_tag(self):
         return self._get_error_val("error-tag")
 
-    def get_error_type (self):
+    def get_error_type(self):
         return self._get_error_val("error-type")
 
-    def get_error_info (self):
+    def get_error_info(self):
         return self._get_error_val("error-info")
 
-    def get_error_severity (self):
+    def get_error_severity(self):
         return self._get_error_val("error-severity")
+
 
 # RFC6241
 
@@ -78,33 +81,34 @@ RPCERR_TYPE_ENUM = {
 }
 
 # error-tag
-RPCERR_TAG_IN_USE                  = "in-use"
-RPCERR_TAG_INVALID_VALUE           = "invalid-value"
-RPCERR_TAG_TOO_BIG                 = "too-big"
-RPCERR_TAG_MISSING_ATTRIBUTE       = "missing-attribute"
-RPCERR_TAG_BAD_ATTRIBUTE           = "bad-attribute"
-RPCERR_TAG_UNKNOWN_ATTRIBUTE       = "unknown-attribute"
-RPCERR_TAG_MISSING_ELEMENT         = "missing-element"
-RPCERR_TAG_BAD_ELEMENT             = "bad-element"
-RPCERR_TAG_UNKNOWN_ELEMENT         = "unknown-element"
-RPCERR_TAG_UNKNOWN_NAMESPACE       = "unknown-namespace"
-RPCERR_TAG_ACCESS_DENIED           = "access-denied"
-RPCERR_TAG_LOCK_DENIED             = "lock-denied"
-RPCERR_TAG_RESOURCE_DENIED         = "resource-denied"
-RPCERR_TAG_ROLLBACK_FAILED         = "rollback-failed"
-RPCERR_TAG_DATA_EXISTS             = "data-exists"
-RPCERR_TAG_DATA_MISSING            = "data-missing"
+RPCERR_TAG_IN_USE = "in-use"
+RPCERR_TAG_INVALID_VALUE = "invalid-value"
+RPCERR_TAG_TOO_BIG = "too-big"
+RPCERR_TAG_MISSING_ATTRIBUTE = "missing-attribute"
+RPCERR_TAG_BAD_ATTRIBUTE = "bad-attribute"
+RPCERR_TAG_UNKNOWN_ATTRIBUTE = "unknown-attribute"
+RPCERR_TAG_MISSING_ELEMENT = "missing-element"
+RPCERR_TAG_BAD_ELEMENT = "bad-element"
+RPCERR_TAG_UNKNOWN_ELEMENT = "unknown-element"
+RPCERR_TAG_UNKNOWN_NAMESPACE = "unknown-namespace"
+RPCERR_TAG_ACCESS_DENIED = "access-denied"
+RPCERR_TAG_LOCK_DENIED = "lock-denied"
+RPCERR_TAG_RESOURCE_DENIED = "resource-denied"
+RPCERR_TAG_ROLLBACK_FAILED = "rollback-failed"
+RPCERR_TAG_DATA_EXISTS = "data-exists"
+RPCERR_TAG_DATA_MISSING = "data-missing"
 RPCERR_TAG_OPERATION_NOT_SUPPORTED = "operation-not-supported"
-RPCERR_TAG_OPERATION_FAILED        = "operation-failed"
-RPCERR_TAG_MALFORMED_MESSAGE       = "malformed-message"
+RPCERR_TAG_OPERATION_FAILED = "operation-failed"
+RPCERR_TAG_MALFORMED_MESSAGE = "malformed-message"
+
 # error-app-tag
 # error-path # xpath associated with error.
 # error-message # human readable message describiing error
 # error-info
 
 
-class RPCServerError (NetconfException):
-    def __init__ (self, origmsg, etype, tag, **kwargs):
+class RPCServerError(NetconfException):
+    def __init__(self, origmsg, etype, tag, **kwargs):
         # Add attrib and nsmap from original message.
         self.reply = etree.Element("rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
 
@@ -128,49 +132,64 @@ class RPCServerError (NetconfException):
         # This sort of sucks for humans
         super(RPCServerError, self).__init__(self.get_reply_msg())
 
-    def get_reply_msg (self):
+    def get_reply_msg(self):
         return etree.tounicode(self.reply)
 
 
-class RPCSvrErrBadMsg (RPCServerError):
+class RPCSvrErrBadMsg(RPCServerError):
     """If the server raises this exception the and netconf 1.0 is in use, the session will be closed"""
-    def __init__ (self, origmsg):
+
+    def __init__(self, origmsg):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MALFORMED_MESSAGE)
 
 
-class RPCSvrInvalidValue (RPCServerError):
-    def __init__ (self, origmsg, **kwargs):
+class RPCSvrInvalidValue(RPCServerError):
+    def __init__(self, origmsg, **kwargs):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_INVALID_VALUE, **kwargs)
 
 
-class RPCSvrMissingElement (RPCServerError):
-    def __init__ (self, origmsg, tag, **kwargs):
+class RPCSvrMissingElement(RPCServerError):
+    def __init__(self, origmsg, tag, **kwargs):
         try:
             # Old API had this as an element...
             tag = tag.tag
         except AttributeError:
             pass
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MISSING_ELEMENT, info=tag, **kwargs)
+        RPCServerError.__init__(
+            self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MISSING_ELEMENT, info=tag, **kwargs)
 
 
-class RPCSvrBadElement (RPCServerError):
-    def __init__ (self, origmsg, element, **kwargs):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_BAD_ELEMENT, info=element.tag, **kwargs)
+class RPCSvrBadElement(RPCServerError):
+    def __init__(self, origmsg, element, **kwargs):
+        RPCServerError.__init__(
+            self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_BAD_ELEMENT, info=element.tag, **kwargs)
 
 
-class RPCSvrUnknownElement (RPCServerError):
-    def __init__ (self, origmsg, element, **kwargs):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_UNKNOWN_ELEMENT, info=element.tag, **kwargs)
+class RPCSvrUnknownElement(RPCServerError):
+    def __init__(self, origmsg, element, **kwargs):
+        RPCServerError.__init__(
+            self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_UNKNOWN_ELEMENT, info=element.tag, **kwargs)
 
 
-class RPCSvrErrNotImpl (RPCServerError):
-    def __init__ (self, origmsg, **kwargs):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_NOT_SUPPORTED, **kwargs)
+class RPCSvrErrNotImpl(RPCServerError):
+    def __init__(self, origmsg, **kwargs):
+        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL,
+                                RPCERR_TAG_OPERATION_NOT_SUPPORTED, **kwargs)
 
 
-class RPCSvrException (RPCServerError):
-    def __init__ (self, origmsg, exception, **kwargs):
-        RPCServerError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, RPCERR_TAG_OPERATION_FAILED, info=str(exception), **kwargs)
+class RPCSvrException(RPCServerError):
+    def __init__(self, origmsg, exception, **kwargs):
+        RPCServerError.__init__(
+            self,
+            origmsg,
+            RPCERR_TYPE_PROTOCOL,
+            RPCERR_TAG_OPERATION_FAILED,
+            info=str(exception),
+            **kwargs)
+
+
+# Need to deprecate this as we are overriding a built-in
+TimeoutError = ReplyTimeoutError  # pylint: disable=W0622
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 19 2015'

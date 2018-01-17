@@ -220,6 +220,14 @@ class NetconfClientSession(NetconfSession):
                 finally:
                     self.cv.notify_all()
 
+    def get_config(self, source="running", filter=None, timeout=None):
+        msg_id = get_config_async(source, target, timeout)
+        return self.wait_reply(msg_id, timeout)
+
+    def get(self, source="running", filter=None, timeout=None):
+        msg_id = get_config_async(source, target, timeout)
+        return self.wait_reply(msg_id, timeout)
+
 
 class NetconfSSHSession(NetconfClientSession):
     def __init__(self,

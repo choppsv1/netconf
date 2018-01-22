@@ -27,6 +27,7 @@ except ImportError:
     from xml.etree import ElementTree as etree
 import paramiko as ssh
 
+from sshutil.cache import SSHConnectionCache, SSHNoConnectionCache
 from netconf import client
 from netconf import server
 from netconf.error import RPCError, SessionError
@@ -85,6 +86,18 @@ def cleanup_module(unused_module):
         gc.collect()
 
 
+def test_bad_password():
+    try:
+        cache = SSHNoConnectionCache("SSH uncached connections")
+        session = client.NetconfSSHSession(
+            "127.0.0.1", password="badpass", port=nc_server.port, cache=cache)
+    except ssh.AuthenticationException:
+        pass
+    else:
+        logger.error("Unexpected success: %s", str(session))
+        assert False
+
+
 def test_not_supported():
     session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
@@ -96,16 +109,6 @@ def test_not_supported():
         assert error.get_error_tag() == "operation-not-supported"
     else:
         logger.error("Unexpected success: %s", str(rval))
-        assert False
-
-
-def test_bad_password():
-    try:
-        session = client.NetconfSSHSession("127.0.0.1", password="badpass", port=nc_server.port)
-    except ssh.AuthenticationException:
-        pass
-    else:
-        logger.error("Unexpected success: %s", str(session))
         assert False
 
 
@@ -310,7 +313,8 @@ def _test_multi_open(client_cache):
 
     logger.info("Reopening")
     sessions = [
-        client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
+        client.NetconfSSHSession(
+            "127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG, cache=client_cache)
         for unused in range(0, 25)
     ]
 
@@ -320,7 +324,8 @@ def _test_multi_open(client_cache):
 
     logger.info("Reopening")
     sessions = [
-        client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
+        client.NetconfSSHSession(
+            "127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG, cache=client_cache)
         for unused in range(0, 25)
     ]
     logger.info("Reclosing")
@@ -339,11 +344,10 @@ def _test_multi_open(client_cache):
 
 
 def test_multi_open_no_cache():
-    _test_multi_open(None)
+    _test_multi_open(SSHNoConnectionCache("SSH uncached connections"))
 
 
 def test_multi_open_cache():
-    from sshutil.cache import SSHConnectionCache
     _test_multi_open(SSHConnectionCache("test multi open cache"))
 
 

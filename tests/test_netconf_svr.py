@@ -27,6 +27,8 @@ except ImportError:
     from xml.etree import ElementTree as etree
 import paramiko as ssh
 
+from sshutil import DisableGlobalCaching
+from sshutil.cache import SSHConnectionCache, SSHNoConnectionCache
 from netconf import client
 from netconf import server
 from netconf.error import RPCError, SessionError
@@ -58,10 +60,12 @@ def setup_module(unused_module):
     global nc_server
 
     logging.basicConfig(level=logging.DEBUG)
+    DisableGlobalCaching()
 
     if nc_server is not None:
         logger.error("XXX Called setup_module multiple times")
     else:
+        logger.info("Set up netconf server")
         server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
         nc_server = server.NetconfSSHServer(
             server_ctl=server_ctl,
@@ -85,6 +89,18 @@ def cleanup_module(unused_module):
         gc.collect()
 
 
+def test_bad_password():
+    try:
+        cache = SSHNoConnectionCache("SSH uncached connections")
+        session = client.NetconfSSHSession(
+            "127.0.0.1", password="badpass", port=nc_server.port, cache=cache)
+    except ssh.AuthenticationException:
+        pass
+    else:
+        logger.error("Unexpected success: %s", str(session))
+        assert False
+
+
 def test_not_supported():
     session = client.NetconfSSHSession("127.0.0.1", password="admin", port=nc_server.port)
     assert session
@@ -96,16 +112,6 @@ def test_not_supported():
         assert error.get_error_tag() == "operation-not-supported"
     else:
         logger.error("Unexpected success: %s", str(rval))
-        assert False
-
-
-def test_bad_password():
-    try:
-        session = client.NetconfSSHSession("127.0.0.1", password="badpass", port=nc_server.port)
-    except ssh.AuthenticationException:
-        pass
-    else:
-        logger.error("Unexpected success: %s", str(session))
         assert False
 
 
@@ -233,44 +239,15 @@ def test_multi_session():
 
 def test_server_close():
     server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
-    port = None
-    LAST_INDEX = 40000 + 5000
-    for port in range(40000, LAST_INDEX + 1):
-        try:
-            logger.info("Create server on port %d", port)
-            ns = server.NetconfSSHServer(
-                server_ctl=server_ctl,
-                server_methods=NetconfMethods(),
-                port=port,
-                host_key="tests/host_key",
-                debug=SERVER_DEBUG)
-            break
-        except socket.error as error:
-            logger.info("Got exception: %s %d %d", str(error), error.errno, errno.EADDRINUSE)
-            if error.errno != errno.EADDRINUSE or port == LAST_INDEX:
-                raise
-
-    logger.info("Connect to server on port %d", port)
-    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
-    session.close()
-    # NetconfSSHSession.flush()
-
-    logger.debug("Closing")
-    ns.close()
-    logger.debug("Joining")
-    ns.join()
-
-    # import time
-    # time.sleep(.1)
-
     for i in range(0, 10):
         logger.debug("Starting %d iteration", i)
         ns = server.NetconfSSHServer(
             server_ctl=server_ctl,
             server_methods=NetconfMethods(),
-            port=port,
+            port=None,
             host_key="tests/host_key",
             debug=SERVER_DEBUG)
+        port = ns.port
 
         logger.info("Connect to server on port %d", port)
         session = client.NetconfSSHSession(
@@ -310,7 +287,8 @@ def _test_multi_open(client_cache):
 
     logger.info("Reopening")
     sessions = [
-        client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
+        client.NetconfSSHSession(
+            "127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG, cache=client_cache)
         for unused in range(0, 25)
     ]
 
@@ -320,7 +298,8 @@ def _test_multi_open(client_cache):
 
     logger.info("Reopening")
     sessions = [
-        client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
+        client.NetconfSSHSession(
+            "127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG, cache=client_cache)
         for unused in range(0, 25)
     ]
     logger.info("Reclosing")
@@ -339,12 +318,11 @@ def _test_multi_open(client_cache):
 
 
 def test_multi_open_no_cache():
-    _test_multi_open(None)
+    _test_multi_open(SSHNoConnectionCache("SSH uncached connections"))
 
 
 def test_multi_open_cache():
-    from sshutil.cache import SSHConnectionCache
-    _test_multi_open(SSHConnectionCache("test multi open cache"))
+    _test_multi_open(SSHConnectionCache("test multi open cache", max_channels=50))
 
 
 __author__ = 'Christian Hopps'

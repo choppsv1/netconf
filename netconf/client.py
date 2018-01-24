@@ -32,6 +32,19 @@ from netconf.error import RPCError, SessionError, ReplyTimeoutError
 logger = logging.getLogger(__name__)
 
 
+def _is_filter(select):
+    return select.lstrip().startswith("<")
+
+
+def _get_selection(select):
+    if select is None:
+        return ""
+    elif _is_filter(select) is not None:
+        return "<filter>{}</filter>".format(select)
+    else:
+        return """<filter type="xpath" select="{}"/>""".format(select)
+
+
 class Timeout(object):
     def __init__(self, timeout):
         self.start_time = monotonic()
@@ -219,6 +232,26 @@ class NetconfClientSession(NetconfSession):
                     raise
                 finally:
                     self.cv.notify_all()
+
+    def get_config_async(self, source, select):
+        rpc = "<get-config><source><{}/></source>".format(source)
+        rpc += _get_selection(select)
+        rpc += "</get-config>"
+        return self.send_rpc_async(rpc)
+
+    def get_config(self, source="running", select=None, timeout=None):
+        msg_id = self.get_config_async(source, select)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply.find("nc:config", namespaces=NSMAP)
+
+    def get_async(self, select):
+        rpc = "<get>" + _get_selection(select) + "</get>"
+        return self.send_rpc_async(rpc)
+
+    def get(self, select=None, timeout=None):
+        msg_id = self.get_async(select)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply.find("nc:data", namespaces=NSMAP)
 
 
 class NetconfSSHSession(NetconfClientSession):

@@ -2,13 +2,12 @@ language: python
 sudo: required
 python:
 - '2.7'
-- '3.5'
 - '3.6'
 install:
 - pip install coveralls tox-travis
 - pip install -r test_requirements.txt
 script:
-- tox
+- coverage run -m py.test
 deploy:
   provider: pypi
   user: choppsv1

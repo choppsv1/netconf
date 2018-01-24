@@ -45,6 +45,12 @@ To open a session to server:
 
   session = NetconfSSHSession(host, port, username, password)
 
+To get the config from a server:
+
+.. code-block:: python
+
+config = session.get_config(source="running")
+
 To send and RPC to a server:
 
 .. code-block:: python

@@ -27,6 +27,7 @@ except ImportError:
     from xml.etree import ElementTree as etree
 import paramiko as ssh
 
+from sshutil import DisableGlobalCaching
 from sshutil.cache import SSHConnectionCache, SSHNoConnectionCache
 from netconf import client
 from netconf import server
@@ -59,6 +60,7 @@ def setup_module(unused_module):
     global nc_server
 
     logging.basicConfig(level=logging.DEBUG)
+    DisableGlobalCaching()
 
     if nc_server is not None:
         logger.error("XXX Called setup_module multiple times")
@@ -348,7 +350,7 @@ def test_multi_open_no_cache():
 
 
 def test_multi_open_cache():
-    _test_multi_open(SSHConnectionCache("test multi open cache"))
+    _test_multi_open(SSHConnectionCache("test multi open cache", max_channels=50))
 
 
 __author__ = 'Christian Hopps'

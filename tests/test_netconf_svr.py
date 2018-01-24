@@ -238,44 +238,15 @@ def test_multi_session():
 
 def test_server_close():
     server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
-    port = None
-    LAST_INDEX = 40000 + 5000
-    for port in range(40000, LAST_INDEX + 1):
-        try:
-            logger.info("Create server on port %d", port)
-            ns = server.NetconfSSHServer(
-                server_ctl=server_ctl,
-                server_methods=NetconfMethods(),
-                port=port,
-                host_key="tests/host_key",
-                debug=SERVER_DEBUG)
-            break
-        except socket.error as error:
-            logger.info("Got exception: %s %d %d", str(error), error.errno, errno.EADDRINUSE)
-            if error.errno != errno.EADDRINUSE or port == LAST_INDEX:
-                raise
-
-    logger.info("Connect to server on port %d", port)
-    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=port, debug=CLIENT_DEBUG)
-    session.close()
-    # NetconfSSHSession.flush()
-
-    logger.debug("Closing")
-    ns.close()
-    logger.debug("Joining")
-    ns.join()
-
-    # import time
-    # time.sleep(.1)
-
     for i in range(0, 10):
         logger.debug("Starting %d iteration", i)
         ns = server.NetconfSSHServer(
             server_ctl=server_ctl,
             server_methods=NetconfMethods(),
-            port=port,
+            port=None,
             host_key="tests/host_key",
             debug=SERVER_DEBUG)
+        port = ns.port
 
         logger.info("Connect to server on port %d", port)
         session = client.NetconfSSHSession(

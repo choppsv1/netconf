@@ -65,6 +65,7 @@ def setup_module(unused_module):
     if nc_server is not None:
         logger.error("XXX Called setup_module multiple times")
     else:
+        logger.info("Set up netconf server")
         server_ctl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
         nc_server = server.NetconfSSHServer(
             server_ctl=server_ctl,

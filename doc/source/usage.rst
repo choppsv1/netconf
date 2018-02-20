@@ -37,6 +37,9 @@ To use netconf in a project:
 Netconf Client
 --------------
 
+Sessions
+^^^^^^^^
+
 To open a session to server:
 
 .. code-block:: python
@@ -45,11 +48,57 @@ To open a session to server:
 
   session = NetconfSSHSession(host, port, username, password)
 
-To get the config from a server:
+To close a session:
 
 .. code-block:: python
 
-config = session.get_config(source="running")
+  session.close()
+
+State
+^^^^^
+To get the operational state from a server:
+
+.. code-block:: python
+
+  config = session.get()
+
+To get a specific selection of state using xpath from a server:
+
+.. code-block:: python
+
+  config = session.get(select="/devices/device[name='RouterA']")
+
+To get a specific selection of state using XML subtree filter from a server:
+
+.. code-block:: python
+
+  config = session.get(select="<devices><device><name>RouterA</name></device></devices>")
+
+Config
+^^^^^^
+To get the running config from a server:
+
+.. code-block:: python
+
+  config = session.get_config()
+
+To get candidate config from a server:
+
+.. code-block:: python
+
+  config = session.get_config(source="candidate")
+
+To get a specific selection of config using xpath from a server:
+
+.. code-block:: python
+
+  config = session.get_config(select="/devices/device[name='RouterA']")
+
+To get a specific selection of config using XML subtree filter from a server:
+
+.. code-block:: python
+
+  config = session.get_config(select="<devices><device><name>RouterA</name></device></devices>")
 
 To send and RPC to a server:
 

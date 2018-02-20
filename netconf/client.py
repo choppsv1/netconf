@@ -110,7 +110,15 @@ class NetconfClientSession(NetconfSession):
             logger.debug("%s: Closed: %s", str(self), str(reply))
 
     def send_rpc_async(self, rpc, noreply=False):
+        """Send a generic RPC to the server and await the reply.
 
+        :param rpc: The XML of the netconf RPC, not including the <rpc> tag.
+        :type rpc: str
+        :param noreply: True if no reply is required.
+        :type noreply: Boolean
+
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        """
         # Get the next message id
         with self.cv:
             assert self.session_id is not None
@@ -136,6 +144,13 @@ class NetconfClientSession(NetconfSession):
         return msg_id
 
     def send_rpc(self, rpc, timeout=None):
+        """Send a generic RPC to the server and await the reply.
+
+        :param rpc (string): The XML of the netconf RPC, not including the <rpc> tag.
+        :return: (Message as an lxml tree, Parsed reply content, Parsed message content).
+        :rtype: (lxml.etree, lxml.Element, lxml.Element)
+        :raises: RPCError, SessionError
+        """
         msg_id = self.send_rpc_async(rpc)
         return self.wait_reply(msg_id, timeout)
 
@@ -147,6 +162,13 @@ class NetconfClientSession(NetconfSession):
             return self.rpc_out[msg_id] is not None
 
     def wait_reply(self, msg_id, timeout=None):
+        """Wait for a reply to a given RPC message ID.
+
+        :param msg_id: the RPC message ID returned from one of the async method calls
+        :return: (Message as an lxml tree, Parsed reply content, Parsed message content).
+        :rtype: (lxml.etree, lxml.Element, lxml.Element)
+        :raises: RPCError, SessionError
+        """
         assert msg_id in self.rpc_out
 
         check_timeout = Timeout(timeout)
@@ -240,6 +262,18 @@ class NetconfClientSession(NetconfSession):
         return self.send_rpc_async(rpc)
 
     def get_config(self, source="running", select=None, timeout=None):
+        """Get config for a given source from the server. If `select` is specified it is either an XPATH
+        expression or XML subtree filter for selecting a subsection of the config. If `timeout` is
+        not `None` it specifies how long to wait for the get operation to complete.
+
+        :param source: the source of the config, defaults to "running".
+        :param select: An XML subtree filter or XPATH expression to select a subsection of config.
+        :param timeout: A value in fractional seconds to wait for the operation to complete or `None` for no timeout.
+        :return: The Parsed XML config (i.e., "<config>...</config>".)
+        :rtype: lxml.Element
+        :raises: ReplyTimeoutError, RPCError, SessionError
+
+        """
         msg_id = self.get_config_async(source, select)
         _, reply, _ = self.wait_reply(msg_id, timeout)
         return reply.find("nc:config", namespaces=NSMAP)
@@ -249,6 +283,18 @@ class NetconfClientSession(NetconfSession):
         return self.send_rpc_async(rpc)
 
     def get(self, select=None, timeout=None):
+        """Get operational state from the server. If `select` is specified it is either an XPATH expression
+        or XML subtree filter for selecting a subsection of the state. If `timeout` is not `None`
+        it specifies how long to wait for the get operation to complete.
+
+        :param source: the source of the state, defaults to "running".
+        :param select: A XML subtree filter or XPATH expression to select a subsection of state.
+        :param timeout: A value in fractional seconds to wait for the operation to complete or `None` for no timeout.
+        :return: The Parsed XML state (i.e., "<data>...</data>".)
+        :rtype: lxml.Element
+        :raises: ReplyTimeoutError, RPCError, SessionError
+
+        """
         msg_id = self.get_async(select)
         _, reply, _ = self.wait_reply(msg_id, timeout)
         return reply.find("nc:data", namespaces=NSMAP)

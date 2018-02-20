@@ -24,8 +24,7 @@ def main(*margs):
         '--hello', action="store_true", help="Do hello and return capabilities of server.")
     parser.add_argument("-i", "--infile", help="File to read from")
     parser.add_argument('-p', '--password', default=None, help='Netconf password')
-    parser.add_argument(
-        '--passenv', default=None, help='Environment variable holding Cassandra password')
+    parser.add_argument('--passenv', default=None, help='Environment variable holding password')
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet operation")
     parser.add_argument('-u', '--username', default="admin", help='Netconf username')
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")

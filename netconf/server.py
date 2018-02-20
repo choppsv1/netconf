@@ -254,6 +254,35 @@ class NetconfServerSession(base.NetconfSession):
             logger.debug("%s: Reader thread exited.", str(self))
         return
 
+    def get_xpath_filter(self, rpc, filter_or_none):
+        """Get a parsed xpath filter if present otherwise return None
+
+        :param rpc: the RPC element.
+        :param filter_or_none: The filter element or None.
+        :returns: A parsed xpath expression or None
+        :raises: RPCServerError if any value is invalid or missing
+        """
+        if filter_or_none is None:
+            return None
+        if 'type' not in filter_or_none:
+            raise ncerror.RPCSvrMissingAttribute(rpc, filter_or_none, "type")
+        if filter_or_none['type'] != "xpath":
+            raise ncerror.RPCSvrBadAttribute(rpc, filter_or_none, "type")
+        if 'select' not in filter_or_none:
+            raise ncerror.RPCSvrMissingAttribute(rpc, filter_or_none, "select")
+        # now parse and return the XPATH filter function
+        return etree.XPath(filter_or_none['select'], namespaces=NSMAP)
+
+    def get_return_filtered(self, rpc, config_or_data, filter_or_none):
+        """Check for a filter and apply it to the return value before returning
+        """
+        xpathf = session.get_xpath_filter(rpc, filter_or_none)
+        if not xpathf:
+            return config_or_data
+
+        # XXX we actually have to implement filtering here!
+        raise ncerror.RPCSvrErrNotImpl(rpc)
+
     def reader_handle_message(self, msg):
         """Handle a message, lock is already held"""
         if not self.session_open:

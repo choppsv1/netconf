@@ -44,6 +44,8 @@ class MockMethods(object):
     def nc_append_capabilities(self, capabilities):  # pylint: disable=W0613
         """The server should append any capabilities it supports to capabilities"""
         ncutil.subelm(capabilities, "capability").text = mock_module
+        ncutil.subelm(capabilities,
+                      "capability").text = "urn:ietf:params:netconf:capability:xpath:1.0"
 
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
         data = ncutil.elm("data")
@@ -64,7 +66,8 @@ class MockMethods(object):
         listval.append(ncutil.leaf_elm("name", "FastEthernet1/1"))
         listval.append(ncutil.leaf_elm("shutdown", "false"))
         listval.append(ncutil.leaf_elm("state", "down"))
-        return data
+
+        return session.get_return_filtered(rpc, data, filter_or_none)
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         assert source_elm is not None
@@ -88,7 +91,8 @@ class MockMethods(object):
         # Missing from operational
         listval.append(ncutil.leaf_elm("name", "GigabitEthernet2/0"))
         listval.append(ncutil.leaf_elm("shutdown", "false"))
-        return config
+
+        return session.get_return_filtered(rpc, config, filter_or_none)
 
     #---------------------------------------------------------------------------
     # These definitions will change to include required parameters like get and

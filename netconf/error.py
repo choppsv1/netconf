@@ -126,8 +126,15 @@ class RPCServerError(NetconfException):
 
         # Now convert any other arguments to xml
         for key, value in kwargs.items():
-            key = key.replace('_', '-')
-            etree.SubElement(rpcerr, "error-{}".format(key)).text = str(value)
+            # Allow info to be a dictionary we convert to sub-elements
+            if key == "info" and hasattr(value, "items"):
+                infoelm = etree.SubElement(rpcerr, "error-info")
+                for ikey, ivalue in value.items():
+                    ikey = ikey.replace('_', '-')
+                    etree.SubElement(infoelm, "{}".format(ikey)).text = str(ivalue)
+            else:
+                key = key.replace('_', '-')
+                etree.SubElement(rpcerr, "error-{}".format(key)).text = str(value)
 
         # This sort of sucks for humans
         super(RPCServerError, self).__init__(self.get_reply_msg())
@@ -148,6 +155,17 @@ class RPCSvrInvalidValue(RPCServerError):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_INVALID_VALUE, **kwargs)
 
 
+class RPCSvrBadElement(RPCServerError):
+    def __init__(self, origmsg, element, **kwargs):
+        RPCServerError.__init__(
+            self,
+            origmsg,
+            RPCERR_TYPE_RPC,
+            RPCERR_TAG_BAD_ELEMENT,
+            info={'bad-element': element.tag},
+            **kwargs)
+
+
 class RPCSvrMissingElement(RPCServerError):
     def __init__(self, origmsg, tag, **kwargs):
         try:
@@ -156,19 +174,59 @@ class RPCSvrMissingElement(RPCServerError):
         except AttributeError:
             pass
         RPCServerError.__init__(
-            self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MISSING_ELEMENT, info=tag, **kwargs)
-
-
-class RPCSvrBadElement(RPCServerError):
-    def __init__(self, origmsg, element, **kwargs):
-        RPCServerError.__init__(
-            self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_BAD_ELEMENT, info=element.tag, **kwargs)
+            self,
+            origmsg,
+            RPCERR_TYPE_RPC,
+            RPCERR_TAG_MISSING_ELEMENT,
+            info={'bad-element': tag},
+            **kwargs)
 
 
 class RPCSvrUnknownElement(RPCServerError):
     def __init__(self, origmsg, element, **kwargs):
         RPCServerError.__init__(
-            self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_UNKNOWN_ELEMENT, info=element.tag, **kwargs)
+            self,
+            origmsg,
+            RPCERR_TYPE_RPC,
+            RPCERR_TAG_UNKNOWN_ELEMENT,
+            info={'bad-element': element.tag},
+            **kwargs)
+
+
+class RPCSvrBadAttribute(RPCServerError):
+    def __init__(self, origmsg, element, attribute, **kwargs):
+        RPCServerError.__init__(
+            self,
+            origmsg,
+            RPCERR_TYPE_RPC,
+            RPCERR_TAG_BAD_ATTRIBUTE,
+            info={'bad-element': element.tag,
+                  'bad-attibute': attribute},
+            **kwargs)
+
+
+class RPCSvrMissingAttribute(RPCServerError):
+    def __init__(self, origmsg, element, attribute, **kwargs):
+        RPCServerError.__init__(
+            self,
+            origmsg,
+            RPCERR_TYPE_RPC,
+            RPCERR_TAG_MISSING_ATTRIBUTE,
+            info={'bad-element': element.tag,
+                  'bad-attibute': attribute},
+            **kwargs)
+
+
+class RPCSvrUnknownAttribute(RPCServerError):
+    def __init__(self, origmsg, element, attribute, **kwargs):
+        RPCServerError.__init__(
+            self,
+            origmsg,
+            RPCERR_TYPE_RPC,
+            RPCERR_TAG_UNKNOWN_ATTRIBUTE,
+            info={'bad-element': element.tag,
+                  'bad-attibute': attribute},
+            **kwargs)
 
 
 class RPCSvrErrNotImpl(RPCServerError):

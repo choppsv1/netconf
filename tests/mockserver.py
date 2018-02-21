@@ -72,7 +72,7 @@ class MockMethods(object):
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         assert source_elm is not None
         if source_elm.find("nc:running", namespaces=NSMAP) is None:
-            raise ncerror.RPCSvrMissingElement(rpc, ncutil.elm("nc:running"))
+            raise ncerror.RPCSvrProtocolMissingElement(rpc, ncutil.qname("nc:running"))
 
         config = ncutil.elm("data")
         cont = ncutil.subelm(config, "interfaces")

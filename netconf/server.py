@@ -265,18 +265,18 @@ class NetconfServerSession(base.NetconfSession):
         if filter_or_none is None:
             return None
         if 'type' not in filter_or_none:
-            raise ncerror.RPCSvrMissingAttribute(rpc, filter_or_none, "type")
+            raise ncerror.RPCSvrProtocolMissingAttribute(rpc, filter_or_none, "type")
         if filter_or_none['type'] != "xpath":
-            raise ncerror.RPCSvrBadAttribute(rpc, filter_or_none, "type")
+            raise ncerror.RPCSvrProtocolBadAttribute(rpc, filter_or_none, "type")
         if 'select' not in filter_or_none:
-            raise ncerror.RPCSvrMissingAttribute(rpc, filter_or_none, "select")
+            raise ncerror.RPCSvrProtocolMissingAttribute(rpc, filter_or_none, "select")
         # now parse and return the XPATH filter function
         return etree.XPath(filter_or_none['select'], namespaces=NSMAP)
 
     def get_return_filtered(self, rpc, config_or_data, filter_or_none):
         """Check for a filter and apply it to the return value before returning
         """
-        xpathf = session.get_xpath_filter(rpc, filter_or_none)
+        xpathf = self.get_xpath_filter(rpc, filter_or_none)
         if not xpathf:
             return config_or_data
 
@@ -349,7 +349,7 @@ class NetconfServerSession(base.NetconfSession):
                         # XXX need to specify all elements not known
                         raise ncerror.RPCSvrErrBadMsg(rpc)
                     if params and not util.filter_tag_match(params[0], "nc:filter"):
-                        raise ncerror.RPCSvrUnknownElement(rpc, params[0])
+                        raise ncerror.RPCSvrProtocolUnknownElement(rpc, params[0])
                     if not params:
                         params = [None]
                 elif rpcname == "get-config":
@@ -361,13 +361,13 @@ class NetconfServerSession(base.NetconfSession):
                         raise ncerror.RPCSvrErrBadMsg(rpc)
                     source_param = rpc_method.find("nc:source", namespaces=NSMAP)
                     if source_param is None:
-                        raise ncerror.RPCSvrMissingElement(rpc, util.elm("nc:source"))
+                        raise ncerror.RPCSvrProtocolMissingElement(rpc, util.qname("nc:source"))
                     filter_param = None
                     if paramslen == 2:
                         filter_param = rpc_method.find("nc:filter", namespaces=NSMAP)
                         if filter_param is None:
                             unknown_elm = params[0] if params[0] != source_param else params[1]
-                            raise ncerror.RPCSvrUnknownElement(rpc, unknown_elm)
+                            raise ncerror.RPCSvrProtocolUnknownElement(rpc, unknown_elm)
                     params = [source_param, filter_param]
 
                 #------------------

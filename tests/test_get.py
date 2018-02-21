@@ -41,7 +41,7 @@ def test_get_config():
     result = session.get_config()
     result = etree.tostring(result, encoding="unicode")
     result = re.sub(">[ \t\n\r]*<", "><", result).strip()
-    expected = """<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><interfaces><interface><name>Ethernet0/0</name><shutdown>true</shutdown></interface><interface><name>Ethernet0/1</name><shutdown>false</shutdown></interface><interface><name>FastEthernet1/0</name><shutdown>false</shutdown></interface><interface><name>FastEthernet1/1</name><shutdown>false</shutdown><name>GigabitEthernet2/0</name><shutdown>false</shutdown></interface></interfaces></config>"""
+    expected = """<data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><interfaces><interface><name>Ethernet0/0</name><shutdown>true</shutdown></interface><interface><name>Ethernet0/1</name><shutdown>false</shutdown></interface><interface><name>FastEthernet1/0</name><shutdown>false</shutdown></interface><interface><name>FastEthernet1/1</name><shutdown>false</shutdown><name>GigabitEthernet2/0</name><shutdown>false</shutdown></interface></interfaces></data>"""
     assert result == expected
 
 

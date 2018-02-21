@@ -71,7 +71,7 @@ class MockMethods(object):
         if source_elm.find("nc:running", namespaces=NSMAP) is None:
             raise ncerror.RPCSvrMissingElement(rpc, ncutil.elm("nc:running"))
 
-        config = ncutil.elm("config")
+        config = ncutil.elm("data")
         cont = ncutil.subelm(config, "interfaces")
         listval = ncutil.subelm(cont, "interface")
         listval.append(ncutil.leaf_elm("name", "Ethernet0/0"))

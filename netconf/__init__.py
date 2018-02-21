@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-#
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # December 23 2014, Christian Hopps <chopps@gmail.com>
 #
@@ -20,23 +20,23 @@ from __future__ import absolute_import, division, unicode_literals, print_functi
 from lxml.etree import register_namespace
 
 MAXSSHBUF = 16 * 1024
-NSMAP = { }
+NSMAP = {}
 
 
-def nsmap_add (prefix, namespace):
+def nsmap_add(prefix, namespace):
     "Add a prefix namespace mapping to the modules mapping dictionary"
     NSMAP[prefix] = namespace
     register_namespace(prefix, namespace)
 
 
-def nsmap_update (nsdict):
+def nsmap_update(nsdict):
     "Add a dicitonary of prefx namespace mappings to the modules mapping dictionary"
     NSMAP.update(nsdict)
     for key, val in nsdict.items():
         register_namespace(key, val)
 
 
-def qmap (key):
+def qmap(key):
     return "{" + NSMAP[key] + "}"
 
 

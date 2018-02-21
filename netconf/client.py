@@ -39,8 +39,8 @@ def _is_filter(select):
 def _get_selection(select):
     if select is None:
         return ""
-    elif _is_filter(select) is not None:
-        return "<filter>{}</filter>".format(select)
+    elif _is_filter(select):
+        return """<filter type="subtree">{}</filter>""".format(select)
     else:
         return """<filter type="xpath" select="{}"/>""".format(select)
 
@@ -276,7 +276,7 @@ class NetconfClientSession(NetconfSession):
         """
         msg_id = self.get_config_async(source, select)
         _, reply, _ = self.wait_reply(msg_id, timeout)
-        return reply.find("nc:config", namespaces=NSMAP)
+        return reply.find("nc:data", namespaces=NSMAP)
 
     def get_async(self, select):
         rpc = "<get>" + _get_selection(select) + "</get>"

@@ -365,9 +365,6 @@ class OperationNotSupportedProtoError(_OperationNotSupportedError):
         _OperationNotSupportedError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-# Backward compat
-RPCSvrErrNotImpl = OperationNotSupportedProtoError
-
 # # This is a pretty complex error if a server really supports it it can implement it itself.
 # class _PartialOperationError(RPCServerError):
 #     def __init__(self, origmsg, ok_elms, err_elms, noop_elms, **kwargs):
@@ -520,6 +517,14 @@ class UnknownNamespaceProtoError(_UnknownNamespaceError):
     def __init__(self, origmsg, element, etype, **kwargs):
         _UnknownNamespaceError.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
 
+
+# Backward compat -- XXX need some deprecation warning for these.
+RPCSvrBadElement = BadElementAppError
+RPCSvrErrNotImpl = OperationNotSupportedProtoError
+RPCSvrErrBadMsg = MalformedMessageRPCError
+RPCSvrInvalidValue = InvalidValueProtoError
+RPCSvrMissingElement = MissingElementAppError
+RPCSvrUnknownElement = UnknownElementAppError
 
 __author__ = 'Christian Hopps'
 __date__ = 'February 19 2015'

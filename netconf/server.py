@@ -247,12 +247,41 @@ class NetconfServerSession(base.NetconfSession):
         if self.debug:
             msg_id = rpc.get('message-id')
             logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     def reader_exits(self):
         if self.debug:
             logger.debug("%s: Reader thread exited.", str(self))
         return
+
+    def get_xpath_filter(self, rpc, filter_or_none):
+        """Get a parsed xpath filter if present otherwise return None
+
+        :param rpc: the RPC element.
+        :param filter_or_none: The filter element or None.
+        :returns: A parsed xpath expression or None
+        :raises: RPCServerError if any value is invalid or missing
+        """
+        if filter_or_none is None:
+            return None
+        if 'type' not in filter_or_none:
+            raise ncerror.MissingAttributeProtoError(rpc, filter_or_none, "type")
+        if filter_or_none['type'] != "xpath":
+            raise ncerror.BadAttributeProtoError(rpc, filter_or_none, "type")
+        if 'select' not in filter_or_none:
+            raise ncerror.MissingAttributeProtoError(rpc, filter_or_none, "select")
+        # now parse and return the XPATH filter function
+        return etree.XPath(filter_or_none['select'], namespaces=NSMAP)
+
+    def get_return_filtered(self, rpc, config_or_data, filter_or_none):
+        """Check for a filter and apply it to the return value before returning
+        """
+        xpathf = self.get_xpath_filter(rpc, filter_or_none)
+        if not xpathf:
+            return config_or_data
+
+        # XXX we actually have to implement filtering here!
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     def reader_handle_message(self, msg):
         """Handle a message, lock is already held"""
@@ -287,7 +316,7 @@ class NetconfServerSession(base.NetconfSession):
                 if len(rpc_method) != 1:
                     if self.debug:
                         logger.debug("%s: Bad Msg: msg-id: %s", str(self), msg_id)
-                    raise ncerror.RPCSvrErrBadMsg(rpc)
+                    raise ncerror.MalformedMessageRPCError(rpc)
                 rpc_method = rpc_method[0]
 
                 rpcname = rpc_method.tag.replace(qmap('nc'), "")
@@ -318,9 +347,9 @@ class NetconfServerSession(base.NetconfSession):
 
                     if paramslen > 1:
                         # XXX need to specify all elements not known
-                        raise ncerror.RPCSvrErrBadMsg(rpc)
+                        raise ncerror.MalformedMessageRPCError(rpc)
                     if params and not util.filter_tag_match(params[0], "nc:filter"):
-                        raise ncerror.RPCSvrUnknownElement(rpc, params[0])
+                        raise ncerror.UnknownElementProtoError(rpc, params[0])
                     if not params:
                         params = [None]
                 elif rpcname == "get-config":
@@ -329,16 +358,16 @@ class NetconfServerSession(base.NetconfSession):
                     # XXX verify that the source parameter is present
                     if paramslen > 2:
                         # XXX need to specify all elements not known
-                        raise ncerror.RPCSvrErrBadMsg(rpc)
+                        raise ncerror.MalformedMessageRPCError(rpc)
                     source_param = rpc_method.find("nc:source", namespaces=NSMAP)
                     if source_param is None:
-                        raise ncerror.RPCSvrMissingElement(rpc, util.elm("nc:source"))
+                        raise ncerror.MissingElementProtoError(rpc, util.qname("nc:source"))
                     filter_param = None
                     if paramslen == 2:
                         filter_param = rpc_method.find("nc:filter", namespaces=NSMAP)
                         if filter_param is None:
                             unknown_elm = params[0] if params[0] != source_param else params[1]
-                            raise ncerror.RPCSvrUnknownElement(rpc, unknown_elm)
+                            raise ncerror.UnknownElementProtoError(rpc, unknown_elm)
                     params = [source_param, filter_param]
 
                 #------------------
@@ -357,11 +386,11 @@ class NetconfServerSession(base.NetconfSession):
                     reply = method(self, rpc, *params)
                     self.send_rpc_reply(reply, rpc)
                 except NotImplementedError:
-                    raise ncerror.RPCSvrErrNotImpl(rpc)
-            except ncerror.RPCSvrErrBadMsg as msgerr:
+                    raise ncerror.OperationNotSupportedProtoError(rpc)
+            except ncerror.MalformedMessageRPCError as msgerr:
                 if self.new_framing:
                     if self.debug:
-                        logger.debug("%s: RPCSvrErrBadMsg: %s", str(self), str(msgerr))
+                        logger.debug("%s: MalformedMessageRPCError: %s", str(self), str(msgerr))
                     self.send_message(msgerr.get_reply_msg())
                 else:
                     # If we are 1.0 we have to simply close the connection
@@ -398,11 +427,11 @@ class NetconfMethods(object):
 
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
         """Passed the filter element or None if not present"""
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         """Passed the source element"""
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     #---------------------------------------------------------------------------
     # These definitions will change to include required parameters like get and
@@ -411,23 +440,23 @@ class NetconfMethods(object):
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_copy_config(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_delete_config(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_edit_config(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_lock(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_unlock(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
 
 class NetconfSSHServer(sshutil.server.SSHServer):

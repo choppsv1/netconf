@@ -22,8 +22,9 @@ import argparse
 import logging
 import os
 import sys
-import netconf.client as client
 from lxml import etree
+
+import netconf.client as client
 
 
 def parse_password_arg(password):

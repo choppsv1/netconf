@@ -41,7 +41,7 @@ class ReplyTimeoutError(NetconfException):
     pass
 
 
-class RPCError(NetconfException):
+class NetconfError(NetconfException):
     def __init__(self, output, tree, error):
         super(RPCError, self).__init__(output)
         self.tree = tree
@@ -65,6 +65,9 @@ class RPCError(NetconfException):
     def get_error_severity(self):
         return self._get_error_val("error-severity")
 
+
+# Backward compatible
+RPCError = NetconfError
 
 # RFC6241
 
@@ -163,22 +166,22 @@ TimeoutError = ReplyTimeoutError  # pylint: disable=W0622
 # -------------------------------------------------------------
 
 
-class _RPCSvrAccessDenied(RPCServerError):
+class _AccessDeniedError(RPCServerError):
     def __init__(self, origmsg, etype, **kwargs):
         RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_ACCESS_DENIED, **kwargs)
 
 
-class RPCSvrApplicationAccessDenied(_RPCSvrAccessDenied):
+class AccessDeniedAppError(_AccessDeniedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrAccessDenied.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+        _AccessDeniedError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolAccessDenied(_RPCSvrAccessDenied):
+class AccessDeniedProtoError(_AccessDeniedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrAccessDenied.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _AccessDeniedError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class _RPCSvrBadAttribute(RPCServerError):
+class _BadAttributeError(RPCServerError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
         RPCServerError.__init__(
             self,
@@ -190,24 +193,24 @@ class _RPCSvrBadAttribute(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationBadAttribute(_RPCSvrBadAttribute):
+class BadAttributeAppError(_BadAttributeError):
     def __init__(self, origmsg, element, attribute, **kwargs):
-        _RPCSvrBadAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_APPLICATION,
-                                     **kwargs)
+        _BadAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_APPLICATION,
+                                    **kwargs)
 
 
-class RPCSvrProtocolBadAttribute(_RPCSvrBadAttribute):
+class BadAttributeProtoError(_BadAttributeError):
     def __init__(self, origmsg, element, attribute, **kwargs):
-        _RPCSvrBadAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_PROTOCOL,
-                                     **kwargs)
+        _BadAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_PROTOCOL,
+                                    **kwargs)
 
 
-class RPCSvrRPCBadAttribute(_RPCSvrBadAttribute):
+class BadAttributeRPCError(_BadAttributeError):
     def __init__(self, origmsg, element, attribute, **kwargs):
-        _RPCSvrBadAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_RPC, **kwargs)
+        _BadAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_RPC, **kwargs)
 
 
-class _RPCSvrBadElement(RPCServerError):
+class _BadElementError(RPCServerError):
     def __init__(self, origmsg, element, etype, **kwargs):
         RPCServerError.__init__(
             self,
@@ -218,44 +221,44 @@ class _RPCSvrBadElement(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationBadElement(_RPCSvrBadElement):
+class BadElementAppError(_BadElementError):
     def __init__(self, origmsg, element, **kwargs):
-        _RPCSvrBadElement.__init__(self, origmsg, element, RPCERR_TYPE_APPLICATION, **kwargs)
+        _BadElementError.__init__(self, origmsg, element, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProcotolBadElement(_RPCSvrBadElement):
+class BadElementProtoError(_BadElementError):
     def __init__(self, origmsg, element, **kwargs):
-        _RPCSvrBadElement.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _BadElementError.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class RPCSvrDataExists(RPCServerError):
+class DataExistsAppError(RPCServerError):
     def __init__(self, origmsg, **kwargs):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, RPCERR_TAG_DATA_EXISTS,
                                 **kwargs)
 
 
-class RPCSvrDataMissing(RPCServerError):
+class DataMissingAppError(RPCServerError):
     def __init__(self, origmsg, **kwargs):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, RPCERR_TAG_DATA_MISSING,
                                 **kwargs)
 
 
-class _RPCSvrInvalidValue(RPCServerError):
-    def __init__(self, origmsg, erype, **kwargs):
-        RPCServerError.__init__(self, origmsg, erype, RPCERR_TAG_INVALID_VALUE, **kwargs)
+class _InvalidValueError(RPCServerError):
+    def __init__(self, origmsg, etype, **kwargs):
+        RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_INVALID_VALUE, **kwargs)
 
 
-class RPCSvrApplicationInvalidValue(_RPCSvrInvalidValue):
+class InvalidValueAppError(_InvalidValueError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrInvalidValue.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+        _InvalidValueError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolInvalidValue(_RPCSvrInvalidValue):
+class InvalidValueProtoError(_InvalidValueError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrInvalidValue.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _InvalidValueError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class RPCSvrLockDenied(RPCServerError):
+class LockDeniedProtoError(RPCServerError):
     def __init__(self, origmsg, session_id, **kwargs):
         RPCServerError.__init__(
             self,
@@ -266,7 +269,7 @@ class RPCSvrLockDenied(RPCServerError):
             **kwargs)
 
 
-class RPCSvrMalformedMessage(RPCServerError):
+class MalformedMessageRPCError(RPCServerError):
     """
     If the server raises this exception the and netconf 1.0 is in use,
     the session will be closed
@@ -276,11 +279,7 @@ class RPCSvrMalformedMessage(RPCServerError):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MALFORMED_MESSAGE)
 
 
-# Backward compat
-RPCSvrErrBadMsg = RPCSvrMalformedMessage
-
-
-class _RPCSvrMissingAttribute(RPCServerError):
+class _MissingAttributeError(RPCServerError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
         RPCServerError.__init__(
             self,
@@ -292,25 +291,25 @@ class _RPCSvrMissingAttribute(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationMissingAttribute(_RPCSvrMissingAttribute):
+class MissingAttributeAppError(_MissingAttributeError):
     def __init__(self, origmsg, element, attribute, **kwargs):
-        _RPCSvrMissingAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_APPLICATION,
-                                         **kwargs)
+        _MissingAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_APPLICATION,
+                                        **kwargs)
 
 
-class RPCSvrProtocolMissingAttribute(_RPCSvrMissingAttribute):
+class MissingAttributeProtoError(_MissingAttributeError):
     def __init__(self, origmsg, element, attribute, **kwargs):
-        _RPCSvrMissingAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_PROTOCOL,
-                                         **kwargs)
+        _MissingAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_PROTOCOL,
+                                        **kwargs)
 
 
-class RPCSvrRPCMissingAttribute(_RPCSvrMissingAttribute):
+class MissingAttributeRPCError(_MissingAttributeError):
     def __init__(self, origmsg, element, attribute, **kwargs):
-        _RPCSvrMissingAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_RPC,
-                                         **kwargs)
+        _MissingAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_RPC,
+                                        **kwargs)
 
 
-class _RPCSvrMissingElement(RPCServerError):
+class _MissingElementError(RPCServerError):
     def __init__(self, origmsg, tag, etype, **kwargs):
         RPCServerError.__init__(
             self,
@@ -321,129 +320,128 @@ class _RPCSvrMissingElement(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationMissingElement(_RPCSvrMissingElement):
+class MissingElementAppError(_MissingElementError):
     def __init__(self, origmsg, tag, **kwargs):
-        _RPCSvrMissingElement.__init__(self, origmsg, tag, RPCERR_TYPE_APPLICATION, **kwargs)
+        _MissingElementError.__init__(self, origmsg, tag, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolMissingElement(_RPCSvrMissingElement):
+class MissingElementProtoError(_MissingElementError):
     def __init__(self, origmsg, tag, **kwargs):
-        _RPCSvrMissingElement.__init__(self, origmsg, tag, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _MissingElementError.__init__(self, origmsg, tag, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class _RPCSvrOperationFailed(RPCServerError):
+class _OperationFailedError(RPCServerError):
     def __init__(self, origmsg, etype, **kwargs):
         RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_OPERATION_FAILED, **kwargs)
 
 
-class RPCSvrApplicationOperationFailed(_RPCSvrOperationFailed):
+class OperationFailedAppError(_OperationFailedError):
     def __init__(self, origmsg, etype, **kwargs):
-        _RPCSvrOperationFailed.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+        _OperationFailedError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolOperationFailed(_RPCSvrOperationFailed):
+class OperationFailedProtoError(_OperationFailedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrOperationFailed.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _OperationFailedError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class RPCSvrRPCOperationFailed(_RPCSvrOperationFailed):
+class OperationFailedRPCError(_OperationFailedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrOperationFailed.__init__(self, origmsg, RPCERR_TYPE_RPC, **kwargs)
+        _OperationFailedError.__init__(self, origmsg, RPCERR_TYPE_RPC, **kwargs)
 
 
-class _RPCSvrOperationNotSupported(RPCServerError):
+class _OperationNotSupportedError(RPCServerError):
     def __init__(self, origmsg, etype, **kwargs):
         RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_OPERATION_NOT_SUPPORTED, **kwargs)
 
 
-class RPCSvrApplicationOperationNotSupported(_RPCSvrOperationNotSupported):
+class OperationNotSupportedAppError(_OperationNotSupportedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrOperationNotSupported.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+        _OperationNotSupportedError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolOperationNotSupported(_RPCSvrOperationNotSupported):
+class OperationNotSupportedProtoError(_OperationNotSupportedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrOperationNotSupported.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _OperationNotSupportedError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
 # Backward compat
-RPCSvrErrNotImpl = RPCSvrProtocolOperationNotSupported
-
-
-class _RPCSvrResourceDenied(RPCServerError):
-    def __init__(self, origmsg, etype, **kwargs):
-        RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_RESOURCE_DENIED, **kwargs)
-
-
-class RPCSvrApplicationResourceDenied(_RPCSvrResourceDenied):
-    def __init__(self, origmsg, **kwargs):
-        _RPCSvrResourceDenied.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
-
-
-class RPCSvrProtocolResourceDenied(_RPCSvrResourceDenied):
-    def __init__(self, origmsg, **kwargs):
-        _RPCSvrResourceDenied.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
-
-
-class RPCSvrRPCResourceDenied(_RPCSvrResourceDenied):
-    def __init__(self, origmsg, **kwargs):
-        _RPCSvrResourceDenied.__init__(self, origmsg, RPCERR_TYPE_RPC, **kwargs)
-
-
-class RPCSvrTransportResourceDenied(_RPCSvrResourceDenied):
-    def __init__(self, origmsg, **kwargs):
-        _RPCSvrResourceDenied.__init__(self, origmsg, RPCERR_TYPE_TRANSPORT, **kwargs)
-
+RPCSvrErrNotImpl = OperationNotSupportedProtoError
 
 # # This is a pretty complex error if a server really supports it it can implement it itself.
-# class RPCSvrPartialOperation(RPCServerError):
+# class _PartialOperationError(RPCServerError):
 #     def __init__(self, origmsg, ok_elms, err_elms, noop_elms, **kwargs):
 #         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION,
 #                                 RPCERR_TAG_PARTIAL_OPERATION,
 #                                 **kwargs)
 
 
-class _RPCSvrRollbackFailed(RPCServerError):
+class _ResourceDeniedError(RPCServerError):
+    def __init__(self, origmsg, etype, **kwargs):
+        RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_RESOURCE_DENIED, **kwargs)
+
+
+class ResourceDeniedAppError(_ResourceDeniedError):
+    def __init__(self, origmsg, **kwargs):
+        _ResourceDeniedError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+
+
+class ResourceDeniedProtoError(_ResourceDeniedError):
+    def __init__(self, origmsg, **kwargs):
+        _ResourceDeniedError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+
+
+class ResourceDeniedRPCError(_ResourceDeniedError):
+    def __init__(self, origmsg, **kwargs):
+        _ResourceDeniedError.__init__(self, origmsg, RPCERR_TYPE_RPC, **kwargs)
+
+
+class ResourceDeniedTransportError(_ResourceDeniedError):
+    def __init__(self, origmsg, **kwargs):
+        _ResourceDeniedError.__init__(self, origmsg, RPCERR_TYPE_TRANSPORT, **kwargs)
+
+
+class _RollbackFailedError(RPCServerError):
     def __init__(self, origmsg, etype, **kwargs):
         RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_ROLLBACK_FAILED, **kwargs)
 
 
-class RPCSvrApplicationRollbackFailed(_RPCSvrRollbackFailed):
+class RollbackFailedAppError(_RollbackFailedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrRollbackFailed.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+        _RollbackFailedError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolRollbackFailed(_RPCSvrRollbackFailed):
+class RollbackFailedProtoError(_RollbackFailedError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrRollbackFailed.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _RollbackFailedError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class _RPCSvrTooBig(RPCServerError):
+class _TooBigError(RPCServerError):
     def __init__(self, origmsg, etype, **kwargs):
         RPCServerError.__init__(self, origmsg, etype, RPCERR_TAG_TOO_BIG, **kwargs)
 
 
-class RPCSvrApplicationTooBig(_RPCSvrTooBig):
+class TooBigAppError(_TooBigError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrTooBig.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
+        _TooBigError.__init__(self, origmsg, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolTooBig(_RPCSvrTooBig):
+class TooBigProtoError(_TooBigError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrTooBig.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _TooBigError.__init__(self, origmsg, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class RPCSvrRPCTooBig(_RPCSvrTooBig):
+class TooBigRPCError(_TooBigError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrTooBig.__init__(self, origmsg, RPCERR_TYPE_RPC, **kwargs)
+        _TooBigError.__init__(self, origmsg, RPCERR_TYPE_RPC, **kwargs)
 
 
-class RPCSvrTransportTooBig(_RPCSvrTooBig):
+class TooBigTransportError(_TooBigError):
     def __init__(self, origmsg, **kwargs):
-        _RPCSvrTooBig.__init__(self, origmsg, RPCERR_TYPE_TRANSPORT, **kwargs)
+        _TooBigError.__init__(self, origmsg, RPCERR_TYPE_TRANSPORT, **kwargs)
 
 
-class _RPCSvrUnknownAttribute(RPCServerError):
+class _UnknownAttributeError(RPCServerError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
         RPCServerError.__init__(
             self,
@@ -455,25 +453,25 @@ class _RPCSvrUnknownAttribute(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationUnknownAttribute(_RPCSvrUnknownAttribute):
+class UnknownAttributeAppError(_UnknownAttributeError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
-        _RPCSvrUnknownAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_APPLICATION,
-                                         **kwargs)
+        _UnknownAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_APPLICATION,
+                                        **kwargs)
 
 
-class RPCSvrProtocolUnknownAttribute(_RPCSvrUnknownAttribute):
+class UnknownAttributeProtoError(_UnknownAttributeError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
-        _RPCSvrUnknownAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_PROTOCOL,
-                                         **kwargs)
+        _UnknownAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_PROTOCOL,
+                                        **kwargs)
 
 
-class RPCSvrRPCUnknownAttribute(_RPCSvrUnknownAttribute):
+class UnknownAttributeRPCError(_UnknownAttributeError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
-        _RPCSvrUnknownAttribute.__init__(self, origmsg, element, attribute, RPCERR_TYPE_RPC,
-                                         **kwargs)
+        _UnknownAttributeError.__init__(self, origmsg, element, attribute, RPCERR_TYPE_RPC,
+                                        **kwargs)
 
 
-class _RPCSvrUnknownElement(RPCServerError):
+class _UnknownElementError(RPCServerError):
     def __init__(self, origmsg, element, etype, **kwargs):
         RPCServerError.__init__(
             self,
@@ -484,17 +482,17 @@ class _RPCSvrUnknownElement(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationUnknownElement(_RPCSvrUnknownElement):
+class UnknownElementAppError(_UnknownElementError):
     def __init__(self, origmsg, element, **kwargs):
-        _RPCSvrUnknownElement.__init__(self, origmsg, element, RPCERR_TYPE_APPLICATION, **kwargs)
+        _UnknownElementError.__init__(self, origmsg, element, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolUnknownElement(_RPCSvrUnknownElement):
+class UnknownElementProtoError(_UnknownElementError):
     def __init__(self, origmsg, element, **kwargs):
-        _RPCSvrUnknownElement.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _UnknownElementError.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
-class _RPCSvrUnknownNamespace(RPCServerError):
+class _UnknownNamespaceError(RPCServerError):
     def __init__(self, origmsg, element, etype, **kwargs):
         try:
             qname = etree.QName(element.tag)
@@ -513,14 +511,14 @@ class _RPCSvrUnknownNamespace(RPCServerError):
             **kwargs)
 
 
-class RPCSvrApplicationUnknownNamespace(_RPCSvrUnknownNamespace):
+class UnknownNamespaceAppError(_UnknownNamespaceError):
     def __init__(self, origmsg, element, etype, **kwargs):
-        _RPCSvrUnknownNamespace.__init__(self, origmsg, element, RPCERR_TYPE_APPLICATION, **kwargs)
+        _UnknownNamespaceError.__init__(self, origmsg, element, RPCERR_TYPE_APPLICATION, **kwargs)
 
 
-class RPCSvrProtocolUnknownNamespace(_RPCSvrUnknownNamespace):
+class UnknownNamespaceProtoError(_UnknownNamespaceError):
     def __init__(self, origmsg, element, etype, **kwargs):
-        _RPCSvrUnknownNamespace.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
+        _UnknownNamespaceError.__init__(self, origmsg, element, RPCERR_TYPE_PROTOCOL, **kwargs)
 
 
 __author__ = 'Christian Hopps'

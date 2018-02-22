@@ -72,7 +72,8 @@ class MockMethods(object):
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         assert source_elm is not None
         if source_elm.find("nc:running", namespaces=NSMAP) is None:
-            raise ncerror.RPCSvrProtocolMissingElement(rpc, ncutil.qname("nc:running"))
+            # Really this should be a different error its a bad value for source not missing
+            raise ncerror.MissingElementProtoError(rpc, ncutil.qname("nc:running"))
 
         config = ncutil.elm("data")
         cont = ncutil.subelm(config, "interfaces")
@@ -101,23 +102,23 @@ class MockMethods(object):
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_copy_config(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_delete_config(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_edit_config(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_lock(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
     # XXX The API WILL CHANGE consider unfinished
     def rpc_unlock(self, unused_session, rpc, *unused_params):
-        raise ncerror.RPCSvrErrNotImpl(rpc)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
 
 
 def init_mock_server():

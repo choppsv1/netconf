@@ -17,10 +17,8 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
-import errno
 import getpass
 import logging
-import socket
 try:
     from lxml import etree
 except ImportError:

@@ -105,10 +105,9 @@ RPCERR_TAG_OPERATION_FAILED = "operation-failed"
 RPCERR_TAG_MALFORMED_MESSAGE = "malformed-message"
 RPCERR_TAG_PARTIAL_OPERATION = "partial-operation"
 
-# error-app-tag
-# error-path # xpath associated with error.
-# error-message # human readable message describiing error
-# error-info
+# ============================================
+# Server Errors for returning value to client.
+# ============================================
 
 
 class RPCServerError(NetconfException):

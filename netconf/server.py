@@ -264,21 +264,28 @@ class NetconfServerSession(base.NetconfSession):
         """
         if filter_or_none is None:
             return None
-        if 'type' not in filter_or_none:
+        if 'type' not in filter_or_none.attrib:
             raise ncerror.MissingAttributeProtoError(rpc, filter_or_none, "type")
+
         if filter_or_none['type'] != "xpath":
-            raise ncerror.BadAttributeProtoError(rpc, filter_or_none, "type")
-        if 'select' not in filter_or_none:
+            if filter_or_none['type'] != "subtree":
+                msg = "unexpected type: " + str(filter_or_none['type'])
+                raise ncerror.BadAttributeProtoError(rpc, filter_or_none, "type", message=msg)
+            # Convert subtree filter to xpath.
+            return None
+
+        if 'select' not in filter_or_none.attrib:
             raise ncerror.MissingAttributeProtoError(rpc, filter_or_none, "select")
+
         # now parse and return the XPATH filter function
         return etree.XPath(filter_or_none['select'], namespaces=NSMAP)
 
-    def get_return_filtered(self, rpc, config_or_data, filter_or_none):
+    def get_return_filtered(self, rpc, data, filter_or_none):
         """Check for a filter and apply it to the return value before returning
         """
         xpathf = self.get_xpath_filter(rpc, filter_or_none)
         if not xpathf:
-            return config_or_data
+            return data
 
         # XXX we actually have to implement filtering here!
         raise ncerror.OperationNotSupportedProtoError(rpc)
@@ -355,9 +362,8 @@ class NetconfServerSession(base.NetconfSession):
                 elif rpcname == "get-config":
                     # Validate GET-CONFIG parameters
 
-                    # XXX verify that the source parameter is present
                     if paramslen > 2:
-                        # XXX need to specify all elements not known
+                        # XXX Should be ncerror.UnknownElementProtoError? for each?
                         raise ncerror.MalformedMessageRPCError(rpc)
                     source_param = rpc_method.find("nc:source", namespaces=NSMAP)
                     if source_param is None:

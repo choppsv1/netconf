@@ -1,4 +1,4 @@
-# -*- coding: utf-8 eval: (yapf-mode 1) -*-##
+# -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
 # January 22 2018, Christian E. Hopps <chopps@gmail.com>
 #

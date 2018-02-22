@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
+from contextlib import contextmanager
 import logging
 import io
 import threading
@@ -256,6 +257,14 @@ class NetconfClientSession(NetconfSession):
                     self.cv.notify_all()
 
     def get_config_async(self, source, select):
+        """Get config asynchronously for a given source from the server. If `select` is specified it is
+        either an XPATH expression or XML subtree filter for selecting a subsection of the config.
+
+        :param source: the source of the config, defaults to "running".
+        :param select: An XML subtree filter or XPATH expression to select a subsection of config.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
         rpc = "<get-config><source><{}/></source>".format(source)
         rpc += _get_selection(select)
         rpc += "</get-config>"
@@ -272,22 +281,29 @@ class NetconfClientSession(NetconfSession):
         :return: The Parsed XML config (i.e., "<config>...</config>".)
         :rtype: lxml.Element
         :raises: ReplyTimeoutError, RPCError, SessionError
-
         """
         msg_id = self.get_config_async(source, select)
         _, reply, _ = self.wait_reply(msg_id, timeout)
         return reply.find("nc:data", namespaces=NSMAP)
 
     def get_async(self, select):
+        """Get operational state asynchronously from the server. If `select` is specified it is either an
+        XPATH expression or XML subtree filter for selecting a subsection of the state. If `timeout`
+        is not `None` it specifies how long to wait for the get operation to complete.
+
+        :param select: A XML subtree filter or XPATH expression to select a subsection of state.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
+
         rpc = "<get>" + _get_selection(select) + "</get>"
         return self.send_rpc_async(rpc)
 
     def get(self, select=None, timeout=None):
         """Get operational state from the server. If `select` is specified it is either an XPATH expression
-        or XML subtree filter for selecting a subsection of the state. If `timeout` is not `None`
-        it specifies how long to wait for the get operation to complete.
+        or XML subtree filter for selecting a subsection of the state. If `timeout` is not `None` it
+        specifies how long to wait for the get operation to complete.
 
-        :param source: the source of the state, defaults to "running".
         :param select: A XML subtree filter or XPATH expression to select a subsection of state.
         :param timeout: A value in fractional seconds to wait for the operation to complete or `None` for no timeout.
         :return: The Parsed XML state (i.e., "<data>...</data>".)
@@ -309,12 +325,56 @@ class NetconfSSHSession(NetconfClientSession):
                  debug=False,
                  cache=None,
                  proxycmd=None):
+        """A netconf SSH client session.
+
+        If `username` is not specified then it will be obtained with
+        getpass.getuser(). If an ssh agent is available it will be used for
+        authentication. A users .ssh/config will be processed for making the ssh
+        connection and any proxycmd found therein will also be utilized.
+
+        :param host: The host to connect to.
+        :param port: The port to connect to.
+        :param username: The username to connect with. If not specified getpass.getuser() will be used
+        :param password: The password or passkey to authenticate with.
+        :param debug: Enable debug logging
+        :param cache: An SSH cache (`sshutil.cache`) to use for caching connections.
+        :param proxycmd: A proxy command string for connecting with
+
+        """
         if username is None:
             import getpass
             username = getpass.getuser()
         stream = sshutil.conn.SSHClientSession(
             host, port, "netconf", username, password, debug, cache=cache, proxycmd=proxycmd)
         super(NetconfSSHSession, self).__init__(stream, debug)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+
+@contextmanager
+def session(host, port=830, username=None, password=None, debug=False, cache=None, proxycmd=None):
+    """A context manager method for using a netconf SSH session.
+
+    If `username` is not specified then it will be obtained with
+    getpass.getuser(). If an ssh agent is available it will be used for
+    authentication. A users .ssh/config will be processed for making the ssh
+    connection and any proxycmd found therein will also be utilized.
+
+    :param host: The host to connect to.
+    :param port: The port to connect to.
+    :param username: The username to connect with. If not specified getpass.getuser() will be used
+    :param password: The password or passkey to authenticate with.
+    :param debug: Enable debug logging
+    :param cache: An SSH cache (`sshutil.cache`) to use for caching connections.
+    :param proxycmd: A proxy command string for connecting with
+    """
+    session = NetconfSSHSession(host, port, username, password, debug, cache, proxycmd)
+    yield session
+    session.close()
 
 
 __author__ = 'Christian Hopps'

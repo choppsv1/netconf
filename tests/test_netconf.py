@@ -17,75 +17,54 @@
 # limitations under the License.
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
-import getpass
 import logging
-from lxml import etree
 import netconf.client as client
-import netconf.server as server
-from netconf.error import RPCError
+from netconf.error import NetconfError
+from mockserver import init_mock_server
 
 logger = logging.getLogger(__name__)
-nc_server = None
 NC_PORT = None
 NC_DEBUG = False
 
 
-class NetconfMethods(server.NetconfMethods):
-    def rpc_get(self, session, rpc, filter_or_none):
-        del session  # unused
-        del filter_or_none  # unused
-        return etree.Element("ok")
-
-
 def setup_module(unused_module):
-    global nc_server
-
-    logging.basicConfig(level=logging.DEBUG)
-
-    if nc_server is not None:
-        logger.error("XXX Called setup_module multiple times")
-    else:
-        sctrl = server.SSHUserPassController(username=getpass.getuser(), password="admin")
-        nc_server = server.NetconfSSHServer(
-            server_ctl=sctrl,
-            server_methods=NetconfMethods(),
-            port=NC_PORT,
-            host_key="tests/host_key",
-            debug=NC_DEBUG)
+    global NC_PORT
+    NC_PORT = init_mock_server()
 
 
 def test_query():
     query = """
     <get>
-    <filter>
+    <filter type="subtree">
     <devices xmlns="http://tail-f.com/ns/ncs">
     <global-settings/>
     </devices>
     </filter>
     </get>
     """
-    logger.info("Connecting to 127.0.0.1 port %d", nc_server.port)
-    session = client.NetconfSSHSession(
-        "127.0.0.1",
-        username=getpass.getuser(),
-        password="admin",
-        port=nc_server.port,
-        debug=NC_DEBUG)
+    logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG)
     session.send_rpc(query)
 
 
 def test_bad_query():
-    session = client.NetconfSSHSession(
-        "127.0.0.1",
-        username=getpass.getuser(),
-        password="admin",
-        port=nc_server.port,
-        debug=NC_DEBUG)
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG)
     try:
         unused, unused, output = session.send_rpc("<get><unknown/></get>")
         logger.warning("Got unexpected output: %s", str(output))
-    except RPCError:
+    except NetconfError:
         pass
+
+
+def test_context_manager():
+    select = """
+    <devices xmlns="http://tail-f.com/ns/ncs">
+    <global-settings/>
+    </devices>
+    """
+    logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
+    with client.session("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG) as session:
+        session.get(select)
 
 
 __author__ = 'Christian Hopps'

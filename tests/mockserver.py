@@ -67,7 +67,8 @@ class MockMethods(object):
         listval.append(ncutil.leaf_elm("shutdown", "false"))
         listval.append(ncutil.leaf_elm("state", "down"))
 
-        return session.get_return_filtered(rpc, data, filter_or_none)
+        # return session.get_return_filtered(rpc, data, filter_or_none)
+        return data
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         assert source_elm is not None
@@ -75,8 +76,8 @@ class MockMethods(object):
             # Really this should be a different error its a bad value for source not missing
             raise ncerror.MissingElementProtoError(rpc, ncutil.qname("nc:running"))
 
-        config = ncutil.elm("data")
-        cont = ncutil.subelm(config, "interfaces")
+        data = ncutil.elm("data")
+        cont = ncutil.subelm(data, "interfaces")
         listval = ncutil.subelm(cont, "interface")
         listval.append(ncutil.leaf_elm("name", "Ethernet0/0"))
         listval.append(ncutil.leaf_elm("shutdown", "true"))
@@ -93,7 +94,8 @@ class MockMethods(object):
         listval.append(ncutil.leaf_elm("name", "GigabitEthernet2/0"))
         listval.append(ncutil.leaf_elm("shutdown", "false"))
 
-        return session.get_return_filtered(rpc, config, filter_or_none)
+        # return session.get_return_filtered(rpc, data, filter_or_none)
+        return data
 
     #---------------------------------------------------------------------------
     # These definitions will change to include required parameters like get and

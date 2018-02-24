@@ -228,32 +228,6 @@ class NetconfServerSession(base.NetconfSession):
         if self.debug:
             logger.debug("%s: Closed.", str(self))
 
-    def send_rpc_reply(self, rpc_reply, origmsg):
-        reply = etree.Element(qmap('nc') + "rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
-        try:
-            rpc_reply.getchildren  # pylint: disable=W0104
-            reply.append(rpc_reply)
-        except AttributeError:
-            reply.extend(rpc_reply)
-        ucode = etree.tounicode(reply, pretty_print=True)
-        if self.debug:
-            logger.debug("%s: Sending RPC-Reply: %s", str(self), str(ucode))
-        self.send_message(ucode)
-
-    def send_rpc_reply_error(self, error):
-        self.send_message(error.get_reply_msg())
-
-    def _rpc_not_implemented(self, unused_session, rpc, *unused_params):
-        if self.debug:
-            msg_id = rpc.get('message-id')
-            logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
-        raise ncerror.OperationNotSupportedProtoError(rpc)
-
-    def reader_exits(self):
-        if self.debug:
-            logger.debug("%s: Reader thread exited.", str(self))
-        return
-
     def get_xpath_filter(self, rpc, filter_or_none):
         """Get a parsed xpath filter if present otherwise return None
 
@@ -290,8 +264,41 @@ class NetconfServerSession(base.NetconfSession):
         # XXX we actually have to implement filtering here!
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
-    def reader_handle_message(self, msg):
-        """Handle a message, lock is already held"""
+    # ----------------
+    # Internal Methods
+    # ----------------
+
+    def send_rpc_reply(self, rpc_reply, origmsg):
+        """Send an rpc-reply to the client. This is should normally not be called
+        externally the return value from the rpc_* methods will be returned
+        using this method.
+        """
+        reply = etree.Element(qmap('nc') + "rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
+        try:
+            rpc_reply.getchildren  # pylint: disable=W0104
+            reply.append(rpc_reply)
+        except AttributeError:
+            reply.extend(rpc_reply)
+        ucode = etree.tounicode(reply, pretty_print=True)
+        if self.debug:
+            logger.debug("%s: Sending RPC-Reply: %s", str(self), str(ucode))
+        self.send_message(ucode)
+
+    def _rpc_not_implemented(self, unused_session, rpc, *unused_params):
+        if self.debug:
+            msg_id = rpc.get('message-id')
+            logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
+        raise ncerror.OperationNotSupportedProtoError(rpc)
+
+    def _send_rpc_reply_error(self, error):
+        self.send_message(error.get_reply_msg())
+
+    def _reader_exits(self):
+        if self.debug:
+            logger.debug("%s: Reader thread exited.", str(self))
+        return
+
+    def _reader_handle_message(self, msg):
         if not self.session_open:
             return
 
@@ -406,18 +413,18 @@ class NetconfServerSession(base.NetconfSession):
             except ncerror.RPCServerError as error:
                 if self.debug:
                     logger.debug("%s: RPCServerError: %s", str(self), str(error))
-                self.send_message(error.get_reply_msg())
+                self._send_rpc_reply_error(error)
             except EOFError:
                 if self.debug:
                     logger.debug("%s: Got EOF in reader_handle_message", str(self))
                 error = ncerror.RPCSvrException(rpc, EOFError("EOF"))
-                self.send_message(error.get_reply_msg())
+                self._send_rpc_reply_error(error)
             except Exception as exception:
                 if self.debug:
                     logger.debug("%s: Got unexpected exception in reader_handle_message: %s",
                                  str(self), str(exception))
                 error = ncerror.RPCSvrException(rpc, exception)
-                self.send_message(error.get_reply_msg())
+                self._send_rpc_reply_error(error)
 
 
 class NetconfMethods(object):

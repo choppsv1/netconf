@@ -396,11 +396,16 @@ class NetconfSession(object):
             self.close()
             raise
 
-    def reader_exits(self):
-        # Called from reader thread when our reader thread exits
+    def _reader_exits(self):
+        """This function is called from the session reader thread as it exits. No more
+        messages will be read from the session socket.
+        """
         raise NotImplementedError("reader_exits")
 
-    def reader_handle_message(self, msg):
+    def _reader_handle_message(self, msg):
+        """This function is called from the session reader thread to process a received
+        framed netconf message.
+        """
         # Called from reader thread after receiving a framed message
         raise NotImplementedError("read_handle_message")
 
@@ -420,7 +425,7 @@ class NetconfSession(object):
 
                 msg = self._receive_message()
                 if msg:
-                    self.reader_handle_message(msg)
+                    self._reader_handle_message(msg)
                     closed = False
                 else:
                     # Client closed, never really see this 1/2 open case unfortunately.
@@ -485,7 +490,7 @@ class NetconfSession(object):
                              traceback.format_exc())
         finally:
             # If we are exiting the read thread we close the session.
-            self.reader_exits()
+            self._reader_exits()
 
 
 __author__ = 'Christian Hopps'

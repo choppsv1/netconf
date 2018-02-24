@@ -110,51 +110,6 @@ class NetconfClientSession(NetconfSession):
         if self.debug:
             logger.debug("%s: Closed: %s", str(self), str(reply))
 
-    def send_rpc_async(self, rpc, noreply=False):
-        """Send a generic RPC to the server and await the reply.
-
-        :param rpc: The XML of the netconf RPC, not including the <rpc> tag.
-        :type rpc: str
-        :param noreply: True if no reply is required.
-        :type noreply: Boolean
-
-        :return: The RPC message id which can be passed to wait_reply for the results.
-        """
-        # Get the next message id
-        with self.cv:
-            assert self.session_id is not None
-            msg_id = self.message_id
-            self.message_id += 1
-
-        if self.debug:
-            logger.debug("%s: Sending RPC message-id: %s", str(self), str(msg_id))
-
-        def sendit():
-            self.send_message("""<rpc message-id="{}"
-                xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">{}</rpc>""".format(msg_id, rpc))
-
-        if noreply:
-            sendit()
-            return None
-
-        with self.cv:
-            sendit()
-            # Mark us as expecting a reply
-            self.rpc_out[msg_id] = None
-
-        return msg_id
-
-    def send_rpc(self, rpc, timeout=None):
-        """Send a generic RPC to the server and await the reply.
-
-        :param rpc (string): The XML of the netconf RPC, not including the <rpc> tag.
-        :return: (Message as an lxml tree, Parsed reply content, Parsed message content).
-        :rtype: (lxml.etree, lxml.Element, lxml.Element)
-        :raises: RPCError, SessionError
-        """
-        msg_id = self.send_rpc_async(rpc)
-        return self.wait_reply(msg_id, timeout)
-
     def is_reply_ready(self, msg_id):
         """Check whether reply is ready (or session closed)"""
         with self.cv:
@@ -204,14 +159,132 @@ class NetconfClientSession(NetconfSession):
         # ok = reply.xpath("nc:ok", namespaces=self.nsmap)
         return tree, reply, msg
 
-    def reader_exits(self):
+    def send_rpc_async(self, rpc, noreply=False):
+        """Send a generic RPC to the server and await the reply.
+
+        :param rpc: The XML of the netconf RPC, not including the <rpc> tag.
+        :type rpc: str
+        :param noreply: True if no reply is required.
+        :type noreply: Boolean
+
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        """
+        # Get the next message id
+        with self.cv:
+            assert self.session_id is not None
+            msg_id = self.message_id
+            self.message_id += 1
+
+        if self.debug:
+            logger.debug("%s: Sending RPC message-id: %s", str(self), str(msg_id))
+
+        def sendit():
+            self.send_message("""<rpc message-id="{}"
+                xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">{}</rpc>""".format(msg_id, rpc))
+
+        if noreply:
+            sendit()
+            return None
+
+        with self.cv:
+            sendit()
+            # Mark us as expecting a reply
+            self.rpc_out[msg_id] = None
+
+        return msg_id
+
+    def send_rpc(self, rpc, timeout=None):
+        """Send a generic RPC to the server and await the reply.
+
+        :param rpc (string): The XML of the netconf RPC, not including the <rpc> tag.
+        :return: (Message as an lxml tree, Parsed reply content, Parsed message content).
+        :rtype: (lxml.etree, lxml.Element, lxml.Element)
+        :raises: RPCError, SessionError
+        """
+        msg_id = self.send_rpc_async(rpc)
+        return self.wait_reply(msg_id, timeout)
+
+    def get_config_async(self, source, select):
+        """Get config asynchronously for a given source from the server. If `select` is
+        specified it is either an XPATH expression or XML subtree filter for
+        selecting a subsection of the config.
+
+        :param source: the source of the config, defaults to "running".
+        :param select: An XML subtree filter or XPATH expression to select a subsection of config.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
+        rpc = "<get-config><source><{}/></source>".format(source)
+        rpc += _get_selection(select)
+        rpc += "</get-config>"
+        return self.send_rpc_async(rpc)
+
+    def get_config(self, source="running", select=None, timeout=None):
+        """Get config for a given source from the server. If `select` is specified it
+        is either an XPATH expression or XML subtree filter for selecting a
+        subsection of the config. If `timeout` is not `None` it specifies how
+        long to wait for the get operation to complete.
+
+        :param source: the source of the config, defaults to "running".
+        :param select: An XML subtree filter or XPATH expression to select a subsection of config.
+        :param timeout: A value in fractional seconds to wait for the operation to complete or
+                        `None` for no timeout.
+        :return: The Parsed XML config (i.e., "<config>...</config>".)
+        :rtype: lxml.Element
+        :raises: ReplyTimeoutError, RPCError, SessionError
+        """
+        msg_id = self.get_config_async(source, select)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply.find("nc:data", namespaces=NSMAP)
+
+    def get_async(self, select):
+        """Get operational state asynchronously from the server. If `select` is
+        specified it is either an XPATH expression or XML subtree filter for
+        selecting a subsection of the state. If `timeout` is not `None` it
+        specifies how long to wait for the get operation to complete.
+
+        :param select: A XML subtree filter or XPATH expression to select a subsection of state.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
+
+        rpc = "<get>" + _get_selection(select) + "</get>"
+        return self.send_rpc_async(rpc)
+
+    def get(self, select=None, timeout=None):
+        """Get operational state from the server. If `select` is specified it is either
+        an XPATH expression or XML subtree filter for selecting a subsection of
+        the state. If `timeout` is not `None` it specifies how long to wait for
+        the get operation to complete.
+
+        :param select: A XML subtree filter or XPATH expression to select a subsection of state.
+        :param timeout: A value in fractional seconds to wait for the operation to complete or
+                       `None` for no timeout.
+        :return: The Parsed XML state (i.e., "<data>...</data>".)
+        :rtype: lxml.Element
+        :raises: ReplyTimeoutError, RPCError, SessionError
+        """
+        msg_id = self.get_async(select)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply.find("nc:data", namespaces=NSMAP)
+
+    # ----------------
+    # Internal Methods
+    # ----------------
+
+    def _reader_exits(self):
+        """This function is called from the session reader thread as it exits. No more
+        messages will be read from the session socket.
+        """
         if self.debug:
             logger.debug("%s: Reader thread exited notifying all.", str(self))
         with self.cv:
             self.cv.notify_all()
 
-    def reader_handle_message(self, msg):
-        """Handle a message, lock is already held"""
+    def _reader_handle_message(self, msg):
+        """This function is called from the session reader thread to process a received
+        framed netconf message.
+        """
         try:
             tree = etree.parse(io.BytesIO(msg.encode('utf-8')))
             if not tree:
@@ -227,8 +300,9 @@ class NetconfClientSession(NetconfSession):
             try:
                 msg_id = int(reply.get('message-id'))
             except (TypeError, ValueError):
-                # # Cisco is returning errors without message-id attribute which is non-rfc-conforming
-                # # it is doing this for any malformed XML not simply missing message-id attribute.
+                # # Cisco is returning errors without message-id attribute which
+                # # is non-rfc-conforming it is doing this for any malformed XML
+                # # not simply missing message-id attribute.
                 # error = reply.xpath("nc:rpc-error", namespaces=self.nsmap)
                 # if error:
                 #     raise RPCError(received, tree, error[0])
@@ -256,65 +330,6 @@ class NetconfClientSession(NetconfSession):
                 finally:
                     self.cv.notify_all()
 
-    def get_config_async(self, source, select):
-        """Get config asynchronously for a given source from the server. If `select` is specified it is
-        either an XPATH expression or XML subtree filter for selecting a subsection of the config.
-
-        :param source: the source of the config, defaults to "running".
-        :param select: An XML subtree filter or XPATH expression to select a subsection of config.
-        :return: The RPC message id which can be passed to wait_reply for the results.
-        :raises: SessionError
-        """
-        rpc = "<get-config><source><{}/></source>".format(source)
-        rpc += _get_selection(select)
-        rpc += "</get-config>"
-        return self.send_rpc_async(rpc)
-
-    def get_config(self, source="running", select=None, timeout=None):
-        """Get config for a given source from the server. If `select` is specified it is either an XPATH
-        expression or XML subtree filter for selecting a subsection of the config. If `timeout` is
-        not `None` it specifies how long to wait for the get operation to complete.
-
-        :param source: the source of the config, defaults to "running".
-        :param select: An XML subtree filter or XPATH expression to select a subsection of config.
-        :param timeout: A value in fractional seconds to wait for the operation to complete or `None` for no timeout.
-        :return: The Parsed XML config (i.e., "<config>...</config>".)
-        :rtype: lxml.Element
-        :raises: ReplyTimeoutError, RPCError, SessionError
-        """
-        msg_id = self.get_config_async(source, select)
-        _, reply, _ = self.wait_reply(msg_id, timeout)
-        return reply.find("nc:data", namespaces=NSMAP)
-
-    def get_async(self, select):
-        """Get operational state asynchronously from the server. If `select` is specified it is either an
-        XPATH expression or XML subtree filter for selecting a subsection of the state. If `timeout`
-        is not `None` it specifies how long to wait for the get operation to complete.
-
-        :param select: A XML subtree filter or XPATH expression to select a subsection of state.
-        :return: The RPC message id which can be passed to wait_reply for the results.
-        :raises: SessionError
-        """
-
-        rpc = "<get>" + _get_selection(select) + "</get>"
-        return self.send_rpc_async(rpc)
-
-    def get(self, select=None, timeout=None):
-        """Get operational state from the server. If `select` is specified it is either an XPATH expression
-        or XML subtree filter for selecting a subsection of the state. If `timeout` is not `None` it
-        specifies how long to wait for the get operation to complete.
-
-        :param select: A XML subtree filter or XPATH expression to select a subsection of state.
-        :param timeout: A value in fractional seconds to wait for the operation to complete or `None` for no timeout.
-        :return: The Parsed XML state (i.e., "<data>...</data>".)
-        :rtype: lxml.Element
-        :raises: ReplyTimeoutError, RPCError, SessionError
-
-        """
-        msg_id = self.get_async(select)
-        _, reply, _ = self.wait_reply(msg_id, timeout)
-        return reply.find("nc:data", namespaces=NSMAP)
-
 
 class NetconfSSHSession(NetconfClientSession):
     def __init__(self,
@@ -334,7 +349,8 @@ class NetconfSSHSession(NetconfClientSession):
 
         :param host: The host to connect to.
         :param port: The port to connect to.
-        :param username: The username to connect with. If not specified getpass.getuser() will be used
+        :param username: The username to connect with. If not specified getpass.getuser()
+                         will be used.
         :param password: The password or passkey to authenticate with.
         :param debug: Enable debug logging
         :param cache: An SSH cache (`sshutil.cache`) to use for caching connections.

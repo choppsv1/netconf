@@ -2,43 +2,15 @@
 .. January 15 2018, Christian Hopps <chopps@gmail.com>
 ..
 
-*****
-Usage
-*****
-
-
-Command Line Tool
-=================
-
-To get the capabilities of a server:
-
-.. code-block:: python
-
-  $ netconf-client --hello --host example.com
-
-
-To request config from a server that has your key:
-
-.. code-block:: shell-script
-
-  $ netconf-client --host example.com <<<"<get-config/>"
-
-
-Development
-===========
-
-To use netconf in a project:
-
-.. code-block:: python
-
-  import netconf
-
+*****************
+Development Usage
+*****************
 
 Netconf Client
---------------
+==============
 
 Sessions
-^^^^^^^^
+--------
 
 To open a session to server:
 
@@ -67,7 +39,7 @@ To close a session:
   session.close()
 
 State
-^^^^^
+-----
 To get the operational state from a server:
 
 .. code-block:: python
@@ -87,7 +59,7 @@ To get a specific selection of state using XML subtree filter from a server:
   config = session.get(select="<devices><device><name>RouterA</name></device></devices>")
 
 Config
-^^^^^^
+------
 To get the running config from a server:
 
 .. code-block:: python
@@ -119,7 +91,7 @@ To send and RPC to a server:
   rpcout = session.send_rpc("<my-rpc/>")
 
 Netconf Server
---------------
+==============
 
 To create a simple server listening on port 830 that handles one RPC ``<my-cool-rpc>``:
 

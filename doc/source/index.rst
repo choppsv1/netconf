@@ -18,7 +18,7 @@ Contents:
 
    installation
    usage-cli
-   usage-dev
+   develop
    reference
 
 .. _sshutil: https://github.com/choppsv1/pysshutil

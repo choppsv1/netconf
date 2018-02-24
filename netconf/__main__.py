@@ -23,6 +23,7 @@ import logging
 import os
 import sys
 from lxml import etree
+from paramiko.pkey import PKey
 
 import netconf.client as client
 
@@ -44,10 +45,12 @@ def main(*margs):
     parser.add_argument('--host', default="localhost", help='Netconf server hostname')
     parser.add_argument(
         '--get',
+        const="",
         nargs='?',
         help="Perform <get>. arg value is xpath/xml filter or taken from infile if not specified")
     parser.add_argument(
         '--get-config',
+        const="",
         nargs='?',
         help=
         "Perform <get-config>. arg value is xpath/xml filter or taken from infile if not specified")
@@ -58,7 +61,9 @@ def main(*margs):
         '-p',
         '--password',
         default=None,
-        help='Netconf password (use "env:" or "file:" prefix to specify source)')
+        help='Password (or passphrase) use "env:" or "file:" prefix to specify password source')
+    parser.add_argument(
+        '-k', '--keyfile', default=None, help='SSH key use password to specify passphrase')
     # Deprecated now parse password args more functional
     parser.add_argument('--passenv', default=None, help=argparse.SUPPRESS)
     parser.add_argument('--port', type=int, default=830, help='Netconf server port')
@@ -77,6 +82,9 @@ def main(*margs):
     else:
         args.password = parse_password_arg(args.password)
 
+    if args.keyfile:
+        args.password = PKey.from_private_key_file(args.keyfile, password=args.password)
+
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     elif args.verbose:
@@ -91,13 +99,14 @@ def main(*margs):
 
     if args.hello:
         result = "\n".join(session.capabilities) + "\n"
-    elif args.get:
+    elif args.get is not None:
         result = session.get(args.get, args.timeout)
         result = etree.tounicode(result, pretty_print=True)
-    elif args.get_config:
+    elif args.get_config is not None:
         result = session.get_config(args.source, args.get_config, args.timeout)
         result = etree.tounicode(result, pretty_print=True)
     else:
+        print("get: {}".format(args.get))
         if args.infile:
             xml = open(args.infile).read()
         else:

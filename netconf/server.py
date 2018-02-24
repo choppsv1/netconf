@@ -507,9 +507,9 @@ class NetconfSSHServer(sshutil.server.SSHServer):
     def __init__(self, server_ctl=None, server_methods=None, port=830, host_key=None, debug=False):
         """A netconf server.
 
-        `server_methods` is a an object that implements the Netconf RPC methods for the
+        server_methods is a an object that implements the Netconf RPC methods for the
         server. The method names are "rpc_X" where X is the netconf method with
-        dash (-) replaced by underscore (_) e.g., <get-config/> is *rpc_get_config*.
+        dash (-) replaced by underscore (_).
 
         :param server_ctl: The object used for authenticating connections to the server.
         :type server_ctl: `ssh.ServerInterface`

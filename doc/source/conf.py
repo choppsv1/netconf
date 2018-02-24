@@ -31,7 +31,11 @@ extensions = [
     #'sphinx.ext.intersphinx',
     #'sphinx.ext.todo",
 ]
-exclude_patterns = ['api/autoindex.rst', 'api/netconf.__main__.rst', 'api/netconf.xpath.rst']
+exclude_patterns = ['api/autoindex.rst',
+                    'api/netconf.__main__.rst',
+                    'api/netconf.base.rst',
+                    'api/netconf.xpath.rst',
+]
 
 # autodoc generation is a bit aggressive and a nuisance when doing heavy
 # text edit cycles.

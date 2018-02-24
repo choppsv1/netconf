@@ -69,12 +69,12 @@ To request config using SSH.
   $ # Using a key from your SSH agent
   $ netconf-client --host 127.0.0.1 --get-config
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <system>
-      <hostname>tops</hostname>
-      <clock>
-        <timezone-utc-offset>180</timezone-utc-offset>
-       </clock>
-    </system>
+    <sys:system xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:hostname>tops</sys:hostname>
+      <sys:clock>
+        <sys:timezone-utc-offset>180</sys:timezone-utc-offset>
+      </sys:clock>
+    </sys:system>
   </data>
 
 To request config filtered by an xpath expression.
@@ -83,11 +83,11 @@ To request config filtered by an xpath expression.
 
   $ netconf-client --port 8300 -u admin -p admin --get-config="/system/clock"
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <system>
-      <clock>
-        <timezone-utc-offset>180</timezone-utc-offset>
-      </clock>
-    </system>
+    <sys:system xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:clock>
+        <sys:timezone-utc-offset>180</sys:timezone-utc-offset>
+      </sys:clock>
+    </sys:system>
   </data>
 
 Get State
@@ -97,22 +97,21 @@ To request operational state (see :ref:`cli-auth` for authentication)
 
 .. code-block:: sh
 
-  $ netconf-client --host --get
+  $ netconf-client --host=127.0.0.1 --port=8300 --get
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <system-state>
-      <system>
-        <os-name>Linux</os-name>
-        <os-release>4.15.3-2-ARCH</os-release>
-        <os-version>#1 SMP PREEMPT Thu Feb 15 00:13:49 UTC 2018</os-version>
-        <machine>x86_64</machine>
-      </system>
-      <clock>
-        <current-datetime>2018-02-24T12:40:00.112720</current-datetime>
-        <boot-datetime>2018-02-23T09:12:22.832893</boot-datetime>
-      </clock>
-    </system-state>
+    <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:system>
+        <sys:os-name>Linux</sys:os-name>
+        <sys:os-release>4.15.3-2-ARCH</sys:os-release>
+        <sys:os-version>#1 SMP PREEMPT Thu Feb 15 00:13:49 UTC 2018</sys:os-version>
+        <sys:machine>x86_64</sys:machine>
+      </sys:system>
+      <sys:clock>
+        <sys:current-datetime>2018-02-24T12:57:18.537626</sys:current-datetime>
+        <sys:boot-datetime>2018-02-23T09:12:22.838012</sys:boot-datetime>
+      </sys:clock>
+    </sys:system-state>
   </data>
-
 
 
 To request state filtered by an xpath expression.
@@ -121,10 +120,10 @@ To request state filtered by an xpath expression.
 
   $ netconf-client --port=8300 -u admin -p admin --get="/system-system/clock"
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <system-state>
-      <clock>
-        <current-datetime>2018-02-24T12:40:12.081513</current-datetime>
-        <boot-datetime>2018-02-23T09:12:22.831840</boot-datetime>
-      </clock>
-    </system-state>
+    <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:clock>
+        <sys:current-datetime>2018-02-24T12:57:18.537626</sys:current-datetime>
+        <sys:boot-datetime>2018-02-23T09:12:22.838012</sys:boot-datetime>
+      </sys:clock>
+    </sys:system-state>
   </data>

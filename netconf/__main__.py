@@ -101,10 +101,10 @@ def main(*margs):
         result = "\n".join(session.capabilities) + "\n"
     elif args.get is not None:
         result = session.get(args.get, args.timeout)
-        result = etree.tounicode(result, pretty_print=True)
+        result = "  " + etree.tounicode(result, pretty_print=True)
     elif args.get_config is not None:
         result = session.get_config(args.source, args.get_config, args.timeout)
-        result = etree.tounicode(result, pretty_print=True)
+        result = "  " + etree.tounicode(result, pretty_print=True)
     else:
         print("get: {}".format(args.get))
         if args.infile:

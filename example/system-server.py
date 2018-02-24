@@ -60,7 +60,7 @@ class ServerMethods(object):
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
         """Passed the filter element or None if not present"""
         logging.debug("GET called")
-        data = util.elm("data")
+        data = util.elm("nc:data")
 
         # if False: # If NMDA
         #     sysc = util.subelm(data, "system")
@@ -71,38 +71,38 @@ class ServerMethods(object):
         #     tzname = time.tzname[time.localtime().tm_isdst]
         #     clockc.append(util.leaf_elm("timezone-utc-offset", int(time.timezone / 100)))
 
-        sysc = util.subelm(data, "system-state")
-        platc = util.subelm(sysc, "system")
+        sysc = util.subelm(data, "sys:system-state")
+        platc = util.subelm(sysc, "sys:system")
 
-        platc.append(util.leaf_elm("os-name", platform.system()))
-        platc.append(util.leaf_elm("os-release", platform.release()))
-        platc.append(util.leaf_elm("os-version", platform.version()))
-        platc.append(util.leaf_elm("machine", platform.machine()))
+        platc.append(util.leaf_elm("sys:os-name", platform.system()))
+        platc.append(util.leaf_elm("sys:os-release", platform.release()))
+        platc.append(util.leaf_elm("sys:os-version", platform.version()))
+        platc.append(util.leaf_elm("sys:machine", platform.machine()))
 
         # Clock
-        clockc = util.subelm(sysc, "clock")
+        clockc = util.subelm(sysc, "sys:clock")
         now = datetime.datetime.now()
-        clockc.append(util.leaf_elm("current-datetime", date_time_string(now)))
+        clockc.append(util.leaf_elm("sys:current-datetime", date_time_string(now)))
 
         if os.path.exists("/proc/uptime"):
             with open('/proc/uptime', 'r') as f:
                 uptime_seconds = float(f.readline().split()[0])
             boottime = time.time() - uptime_seconds
             boottime = datetime.datetime.fromtimestamp(boottime)
-            clockc.append(util.leaf_elm("boot-datetime", date_time_string(boottime)))
+            clockc.append(util.leaf_elm("sys:boot-datetime", date_time_string(boottime)))
         logging.debug("GET returns")
         return data
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         """Passed the source element"""
-        data = util.elm("data")
-        sysc = util.subelm(data, "system")
-        sysc.append(util.leaf_elm("hostname", socket.gethostname()))
+        data = util.elm("nc:data")
+        sysc = util.subelm(data, "sys:system")
+        sysc.append(util.leaf_elm("sys:hostname", socket.gethostname()))
 
         # Clock
-        clockc = util.subelm(sysc, "clock")
+        clockc = util.subelm(sysc, "sys:clock")
         # tzname = time.tzname[time.localtime().tm_isdst]
-        clockc.append(util.leaf_elm("timezone-utc-offset", int(time.timezone / 100)))
+        clockc.append(util.leaf_elm("sys:timezone-utc-offset", int(time.timezone / 100)))
 
         return data
 

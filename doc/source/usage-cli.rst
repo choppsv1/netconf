@@ -13,7 +13,11 @@ To get the capabilities of a server:
 
 .. code-block:: sh
 
-  $ netconf-client --host example.com --hello
+  $ netconf-client … --hello
+  urn:ietf:params:netconf:capability:xpath:1.0
+  urn:ietf:params:xml:ns:yang:ietf-system
+  urn:ietf:params:netconf:base:1.1
+  urn:ietf:params:netconf:base:1.0
 
 .. _cli-auth:
 
@@ -27,47 +31,46 @@ Password Authentication
 .. code-block:: sh
 
   $ # Using a password
-  $ netconf-client --host example.com --username=admin --password=admin --get-config
+  $ netconf-client … --username=admin --password=admin
 
   $ # Using a password in an environment variable
   $ export PASS=admin
-  $ netconf-client --host example.com --username=admin --password=env:PASS --get-config
+  $ netconf-client … --username=admin --password=env:PASS
 
   $ # Using a password in a file.
   $ echo "admin" > passfile
-  $ netconf-client --host example.com --username=admin --password=file:passfile --get-config
+  $ netconf-client … --username=admin --password=file:passfile
 
 SSH Authentication
 ------------------
 .. code-block:: sh
 
   $ # Using a key from your SSH agent
-  $ netconf-client --host example.com --get-config
+  $ netconf-client …
 
   $ # Using a keyfile
-  $ netconf-client --host example.com --get-config --keyfile=~/.ssh/id_rsa
+  $ netconf-client … --keyfile=~/.ssh/id_rsa
 
   $ # Using a key from an environment variable (useful in CI environments)
   $ export MYKEY="$(cat ~/.ssh/id_rsa)"
-  $ netconf-client --host example.com --get-config --keyfile=<(echo "$MYKEY")
+  $ netconf-client … --keyfile=<(echo "$MYKEY") --hello
 
   $ # Using a keyfile with a passphrase from an environment variable
   $ export PASS="mypassphrase"
-  $ netconf-client --host example.com --get-config --keyfile=~/.ssh/id_rsa --password=env:PASS
+  $ netconf-client … --keyfile=~/.ssh/id_rsa --password=env:PASS
 
   $ # Using a keyfile with a passphrase from a file
   $ echo "mypassphrase" > passfile
-  $ netconf-client --host example.com --get-config --keyfile=~/.ssh/id_rsa --password=file:passfile
+  $ netconf-client … --keyfile=~/.ssh/id_rsa --password=file:passfile
 
 Get Config
 ==========
 
-To request config using SSH.
+To request config.
 
 .. code-block:: sh
 
-  $ # Using a key from your SSH agent
-  $ netconf-client --host 127.0.0.1 --get-config
+  $ netconf-client … --get-config
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
     <sys:system xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
       <sys:hostname>tops</sys:hostname>
@@ -81,7 +84,7 @@ To request config filtered by an xpath expression.
 
 .. code-block:: sh
 
-  $ netconf-client --port 8300 -u admin -p admin --get-config="/system/clock"
+  $ netconf-client … --get-config="/system/clock"
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
     <sys:system xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
       <sys:clock>
@@ -97,7 +100,7 @@ To request operational state (see :ref:`cli-auth` for authentication)
 
 .. code-block:: sh
 
-  $ netconf-client --host=127.0.0.1 --port=8300 --get
+  $ netconf-client … --get
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
     <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
       <sys:system>
@@ -118,7 +121,7 @@ To request state filtered by an xpath expression.
 
 .. code-block:: sh
 
-  $ netconf-client --port=8300 -u admin -p admin --get="/system-system/clock"
+  $ netconf-client … --get="/system-system/clock"
   <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
     <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
       <sys:clock>

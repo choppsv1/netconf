@@ -59,6 +59,23 @@ def is_selection_node(felm):
     return ftext is None or not ftext.strip()
 
 
+def filter_results(self, rpc, data, filter_or_none):
+    """Check for a user filter and prune the result data accordingly.
+
+    :param rpc: An RPC message element.
+    :param data: The data to filter.
+    :param filter_or_none: Filter element or None.
+    :type filter_or_none: `lxml.Element`
+    """
+
+    xpathf = xpath.get_xpath_filter(rpc, filter_or_none)
+    if not xpathf:
+        return data
+
+    # XXX we actually have to implement filtering here!
+    raise ncerror.OperationNotSupportedProtoError(rpc)
+
+
 def filter_tag_match(filter_tag, elm_tag):
     fqname = etree.QName(filter_tag)
     eqname = qname(elm_tag)

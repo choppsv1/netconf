@@ -44,7 +44,13 @@ except ImportError:
     have_pam = False
 
 
-class SSHAuthController(ssh.ServerInterface):
+class SSHAuthorizedKeysController(ssh.ServerInterface):
+    """An implementation of paramiko `ServerInterface` that utilizes users
+    authorized keys file for authentication.
+
+    :param users: A list of usernames whose authorized keys will allow access.
+    """
+
     def __init__(self, users=None):
         self.event = threading.Event()
         self.users = users
@@ -160,7 +166,18 @@ class SSHAuthController(ssh.ServerInterface):
         return name == "netconf"
 
 
+# Backward compat
+SSHAuthController = SSHAuthorizedKeysController
+
+
 class SSHUserPassController(ssh.ServerInterface):
+    """An implementation of paramiko `ServerInterface` that authorizes a single user
+    and password.
+
+    :param username: The username to allow.
+    :param password: The password to allow.
+    """
+
     def __init__(self, username=None, password=None):
         self.username = username
         self.password = password
@@ -190,13 +207,16 @@ class SSHUserPassController(ssh.ServerInterface):
 
 
 class NetconfServerSession(base.NetconfSession):
-    """Netconf Server-side Session Protocol"""
+    """Netconf Server-side session with a client.
+
+    This object will be passed to a the server RPC methods.
+    """
     handled_rpc_methods = set(["close-session", "kill-session"])
 
     def __init__(self, channel, server, unused_extra_args, debug):
         self.server = server
 
-        sid = server.allocate_session_id()
+        sid = server._allocate_session_id()
         if debug:
             logger.debug("NetconfServerSession: Creating session-id %s", str(sid))
 
@@ -215,6 +235,7 @@ class NetconfServerSession(base.NetconfSession):
         return "NetconfServerSession(sid:{})".format(self.session_id)
 
     def close(self):
+        """Close the servers side of the session."""
         # XXX should be invoking a method in self.methods?
         if self.debug:
             logger.debug("%s: Closing.", str(self))
@@ -228,47 +249,11 @@ class NetconfServerSession(base.NetconfSession):
         if self.debug:
             logger.debug("%s: Closed.", str(self))
 
-    def get_xpath_filter(self, rpc, filter_or_none):
-        """Get a parsed xpath filter if present otherwise return None
-
-        :param rpc: the RPC element.
-        :param filter_or_none: The filter element or None.
-        :returns: A parsed xpath expression or None
-        :raises: RPCServerError if any value is invalid or missing
-        """
-        if filter_or_none is None:
-            return None
-        if 'type' not in filter_or_none.attrib:
-            raise ncerror.MissingAttributeProtoError(rpc, filter_or_none, "type")
-
-        if filter_or_none['type'] != "xpath":
-            if filter_or_none['type'] != "subtree":
-                msg = "unexpected type: " + str(filter_or_none['type'])
-                raise ncerror.BadAttributeProtoError(rpc, filter_or_none, "type", message=msg)
-            # Convert subtree filter to xpath.
-            return None
-
-        if 'select' not in filter_or_none.attrib:
-            raise ncerror.MissingAttributeProtoError(rpc, filter_or_none, "select")
-
-        # now parse and return the XPATH filter function
-        return etree.XPath(filter_or_none['select'], namespaces=NSMAP)
-
-    def get_return_filtered(self, rpc, data, filter_or_none):
-        """Check for a filter and apply it to the return value before returning
-        """
-        xpathf = self.get_xpath_filter(rpc, filter_or_none)
-        if not xpathf:
-            return data
-
-        # XXX we actually have to implement filtering here!
-        raise ncerror.OperationNotSupportedProtoError(rpc)
-
     # ----------------
     # Internal Methods
     # ----------------
 
-    def send_rpc_reply(self, rpc_reply, origmsg):
+    def _send_rpc_reply(self, rpc_reply, origmsg):
         """Send an rpc-reply to the client. This is should normally not be called
         externally the return value from the rpc_* methods will be returned
         using this method.
@@ -344,7 +329,7 @@ class NetconfServerSession(base.NetconfSession):
                     # XXX should be RPC-unlocking if need be
                     if self.debug:
                         logger.debug("%s: Received close-session msg-id: %s", str(self), msg_id)
-                    self.send_rpc_reply(etree.Element("ok"), rpc)
+                    self._send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
                     # XXX should we also call the user method if it exists?
                     return
@@ -352,7 +337,7 @@ class NetconfServerSession(base.NetconfSession):
                     # XXX we are supposed to cleanly abort anything underway
                     if self.debug:
                         logger.debug("%s: Received kill-session msg-id: %s", str(self), msg_id)
-                    self.send_rpc_reply(etree.Element("ok"), rpc)
+                    self._send_rpc_reply(etree.Element("ok"), rpc)
                     self.close()
                     # XXX should we also call the user method if it exists?
                     return
@@ -397,7 +382,7 @@ class NetconfServerSession(base.NetconfSession):
                     if self.debug:
                         logger.debug("%s: Calling method: %s", str(self), method_name)
                     reply = method(self, rpc, *params)
-                    self.send_rpc_reply(reply, rpc)
+                    self._send_rpc_reply(reply, rpc)
                 except NotImplementedError:
                     raise ncerror.OperationNotSupportedProtoError(rpc)
             except ncerror.MalformedMessageRPCError as msgerr:
@@ -504,20 +489,17 @@ class NetconfMethods(object):
 
 
 class NetconfSSHServer(sshutil.server.SSHServer):
+    """A netconf server.
+
+    :param server_ctl: The object used for authenticating connections to the server.
+    :type server_ctl: `ssh.ServerInterface`
+    :param server_methods: An object which implements servers the rpc_* methods.
+    :param port: The port to bind the server to.
+    :param host_key: The file containing the host key.
+    :param debug: True to enable debug logging.
+    """
+
     def __init__(self, server_ctl=None, server_methods=None, port=830, host_key=None, debug=False):
-        """A netconf server.
-
-        server_methods is a an object that implements the Netconf RPC methods for the
-        server. The method names are "rpc_X" where X is the netconf method with
-        dash (-) replaced by underscore (_).
-
-        :param server_ctl: The object used for authenticating connections to the server.
-        :type server_ctl: `ssh.ServerInterface`
-        :param server_methods: An object which implements servers the rpc_* methods.
-        :param port: The port to bind the server to.
-        :param host_key: The file containing the host key.
-        :param debug: True to enable debug logging.
-        """
         self.server_methods = server_methods if server_methods is not None else NetconfMethods()
         self.session_id = 1
         super(NetconfSSHServer, self).__init__(
@@ -530,7 +512,7 @@ class NetconfSSHServer(sshutil.server.SSHServer):
     def __del__(self):
         logger.error("Deleting %s", str(self))
 
-    def allocate_session_id(self):
+    def _allocate_session_id(self):
         with self.lock:
             sid = self.session_id
             self.session_id += 1

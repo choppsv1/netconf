@@ -54,9 +54,9 @@ To open a session with a context manager:
 
 .. code-block:: python
 
-  from netconf.client import ssh_session
+  from netconf.client import connect_ssh
 
-  with ssh_session(host, port, username, password) as session:
+  with connect_ssh(host, port, username, password) as session:
       config = session.get_config()
       # ...
 

@@ -355,8 +355,14 @@ class NetconfSSHSession(NetconfClientSession):
 
 
 @contextmanager
-def session(host, port=830, username=None, password=None, debug=False, cache=None, proxycmd=None):
-    """A context manager method for using a netconf SSH session.
+def connect_ssh(host,
+                port=830,
+                username=None,
+                password=None,
+                debug=False,
+                cache=None,
+                proxycmd=None):
+    """A context manager method for opening a netconf SSH session.
 
     If `username` is not specified then it will be obtained with
     getpass.getuser(). If an ssh agent is available it will be used for

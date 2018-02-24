@@ -63,7 +63,7 @@ def test_context_manager():
     </devices>
     """
     logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
-    with client.session("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG) as session:
+    with client.connect_ssh("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG) as session:
         session.get(select)
 
 

@@ -7,3 +7,4 @@
    netconf.error.rst
    netconf.server.rst
    netconf.util.rst
+   netconf.xpath.rst

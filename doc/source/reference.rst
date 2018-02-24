@@ -9,4 +9,8 @@ Reference
 .. toctree::
    :glob:
 
-   api/autoindex
+   api/netconf.base
+   api/netconf.client
+   api/netconf.error
+   api/netconf.server
+   api/netconf.util

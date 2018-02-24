@@ -6,16 +6,10 @@ netconf
 =======
 
 This package supports creating both netconf clients and servers. Additionally a
-CLI netconf client is included. The following modules are present:
+CLI netconf utility is included.
 
-- ``base`` - Shared netconf support classes.
-- ``error`` - Netconf error classes.
-- ``client`` - Netconf client classes.
-- ``server`` - Netconf server classes.
-- ``util`` - Netconf utility functions.
-
-`netconf` uses `_sshutil` and thus supports your SSH agent and SSH config when
-using the client.
+Additionally `netconf` uses `_sshutil` and thus supports your SSH agent and SSH
+config when using the client as well as socket caching for optimal performance.
 
 Contents:
 
@@ -23,7 +17,8 @@ Contents:
    :maxdepth: 2
 
    installation
-   usage
+   usage-cli
+   usage-dev
    reference
 
 .. _sshutil: https://github.com/choppsv1/pysshutil

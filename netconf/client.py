@@ -339,7 +339,6 @@ class NetconfSSHSession(NetconfClientSession):
         :param debug: Enable debug logging
         :param cache: An SSH cache (`sshutil.cache`) to use for caching connections.
         :param proxycmd: A proxy command string for connecting with
-
         """
         if username is None:
             import getpass

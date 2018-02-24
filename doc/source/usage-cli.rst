@@ -47,6 +47,18 @@ To open a session to server:
   from netconf.client import NetconfSSHSession
 
   session = NetconfSSHSession(host, port, username, password)
+  config = session.get_config()
+  # ...
+
+To open a session with a context manager:
+
+.. code-block:: python
+
+  from netconf.client import ssh_session
+
+  with ssh_session(host, port, username, password) as session:
+      config = session.get_config()
+      # ...
 
 To close a session:
 

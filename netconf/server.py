@@ -428,22 +428,53 @@ class NetconfServerSession(base.NetconfSession):
 
 
 class NetconfMethods(object):
-    """This is an abstract class that is used to document the server methods functionality
+    """This is an abstract class that is used to document the server methods
+    functionality.
 
-    The server return not-implemented if the method is not found in the methods object,
-    so feel free to use duck-typing here (i.e., no need to inherit)
+    The base server code will return not-implemented if the method is not found
+    in the methods object, so feel free to use duck-typing here (i.e., no need to
+    inherit). Create a class that implements the rpc_* methods you handle and pass
+    that to `NetconfSSHServer` init.
     """
 
     def nc_append_capabilities(self, capabilities):  # pylint: disable=W0613
-        """The server should append any capabilities it supports to capabilities"""
+        """This method should append any capabilities it supports to capabilities
+
+        :param capabilities: The element to append capability elements to.
+        :type capabilities: `lxml.Element`
+        :return: None
+        """
         return
 
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
-        """Passed the filter element or None if not present"""
+        """Passed the filter element or None if not present
+
+        :param session: The server session with the client.
+        :type session: `NetconfServerSession`
+        :param rpc: The topmost element in the received message.
+        :type rpc: `lxml.Element`
+        :param filter_or_none: The filter element if present.
+        :type filter_or_none: `lxml.Element` or None
+        :return: `lxml.Element` of "nc:data" type containing the requested state.
+        :raises: `error.RPCServerError` which will be used to construct an XML error response.
+        """
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
-        """Passed the source element"""
+        """The client has requested the config state (config: true). The function is
+        passed the source element and the filter element or None if not present
+
+        :param session: The server session with the client.
+        :type session: `NetconfServerSession`
+        :param rpc: The topmost element in the received message.
+        :type rpc: `lxml.Element`
+        :param source_elm: The source element indicating where the config should be drawn from.
+        :type source_elm: `lxml.Element`
+        :param filter_or_none: The filter element if present.
+        :type filter_or_none: `lxml.Element` or None
+        :return: `lxml.Element` of "nc:data" type containing the requested state.
+        :raises: `error.RPCServerError` which will be used to construct an XML error response.
+        """
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
     #---------------------------------------------------------------------------
@@ -451,24 +482,24 @@ class NetconfMethods(object):
     # get-config
     #---------------------------------------------------------------------------
 
-    # XXX The API WILL CHANGE consider unfinished
     def rpc_copy_config(self, unused_session, rpc, *unused_params):
+        """XXX API subject to change -- unfinished"""
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
-    # XXX The API WILL CHANGE consider unfinished
     def rpc_delete_config(self, unused_session, rpc, *unused_params):
+        """XXX API subject to change -- unfinished"""
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
-    # XXX The API WILL CHANGE consider unfinished
     def rpc_edit_config(self, unused_session, rpc, *unused_params):
+        """XXX API subject to change -- unfinished"""
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
-    # XXX The API WILL CHANGE consider unfinished
     def rpc_lock(self, unused_session, rpc, *unused_params):
+        """XXX API subject to change -- unfinished"""
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
-    # XXX The API WILL CHANGE consider unfinished
     def rpc_unlock(self, unused_session, rpc, *unused_params):
+        """XXX API subject to change -- unfinished"""
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
 
@@ -479,10 +510,16 @@ class NetconfSSHServer(sshutil.server.SSHServer):
         logger.error("Deleting %s", str(self))
 
     def __init__(self, server_ctl=None, server_methods=None, port=830, host_key=None, debug=False):
-        """
-        server_methods is a an object that implements the Netconf RPC methods
-        for the server. The method names are "rpc_X" where X is the netconf method
-        with dash (-) replaced by underscore (_) e.g., rpc_get_config.
+        """server_methods is a an object that implements the Netconf RPC methods for the
+        server. The method names are "rpc_X" where X is the netconf method with
+        dash (-) replaced by underscore (_) e.g., rpc_get_config.
+
+        :param server_ctl: The object used for authenticating connections to the server.
+        :type server_ctl: `ssh.ServerInterface`
+        :param server_methods: An object which implements servers the rpc_* methods.
+        :param port: The port to bind the server to.
+        :param host_key: The file containing the host key.
+        :param debug: True to enable debug logging.
         """
         self.server_methods = server_methods if server_methods is not None else NetconfMethods()
         self.session_id = 1

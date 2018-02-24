@@ -2,8 +2,9 @@
 .. January 15 2018, Christian Hopps <chopps@gmail.com>
 ..
 
+#######
 netconf
-=======
+#######
 
 This package supports creating both netconf clients and servers. Additionally a
 CLI netconf utility is included.

@@ -50,7 +50,13 @@ def date_time_string(dt):
     return s
 
 
-class ServerMethods(object):
+class SystemServer(object):
+    def __init__(self, port, host_key, auth, debug):
+        self.server = server.NetconfSSHServer(auth, self, port, host_key, debug)
+
+    def close():
+        self.server.close()
+
     def nc_append_capabilities(self, capabilities):  # pylint: disable=W0613
         """The server should append any capabilities it supports to capabilities"""
         util.subelm(capabilities,
@@ -123,26 +129,21 @@ def main(*margs):
     parser.add_argument("--username", default="admin", help='Netconf username')
     args = parser.parse_args(*margs)
 
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     args.password = parse_password_arg(args.password)
+    host_key = os.path.dirname(__file__) + "/server-key"
 
     auth = server.SSHUserPassController(username=args.username, password=args.password)
-    _ = server.NetconfSSHServer(
-        server_ctl=auth,
-        server_methods=ServerMethods(),
-        port=args.port,
-        host_key=os.path.dirname(__file__) + "/server-key",
-        debug=args.debug)
+    s = SystemServer(args.port, host_key, auth, args.debug)
 
     try:
         print("^C to quit server")
         sys.stdin.read()
     except KeyboardInterrupt:
         pass
+
+    s.close()
 
 
 if __name__ == "__main__":

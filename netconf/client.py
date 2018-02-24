@@ -87,6 +87,8 @@ class NetconfClientSession(NetconfSession):
         return "NetconfClientSession(sid:{})".format(self.session_id)
 
     def close(self):
+        """Close the session."""
+
         if self.debug:
             logger.debug("%s: Closing session.", str(self))
 

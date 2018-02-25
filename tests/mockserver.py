@@ -28,7 +28,7 @@ import netconf.server as ncserver
 logger = logging.getLogger(__name__)
 nc_server = None
 NC_PORT = None
-NC_DEBUG = False
+NC_DEBUG = True
 
 mock_module = "urn:mock:module"
 
@@ -67,8 +67,7 @@ class MockMethods(object):
         listval.append(ncutil.leaf_elm("shutdown", "false"))
         listval.append(ncutil.leaf_elm("state", "down"))
 
-        # return session.get_return_filtered(rpc, data, filter_or_none)
-        return data
+        return ncutil.filter_results(rpc, data, filter_or_none)
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         assert source_elm is not None
@@ -94,8 +93,7 @@ class MockMethods(object):
         listval.append(ncutil.leaf_elm("name", "GigabitEthernet2/0"))
         listval.append(ncutil.leaf_elm("shutdown", "false"))
 
-        # return session.get_return_filtered(rpc, data, filter_or_none)
-        return data
+        return ncutil.filter_results(rpc, data, filter_or_none)
 
     #---------------------------------------------------------------------------
     # These definitions will change to include required parameters like get and
@@ -124,7 +122,7 @@ class MockMethods(object):
 
 
 def init_mock_server():
-    logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
 
     if init_mock_server.server is not None:
         logger.error("XXX Called init_mock_server called multiple times")

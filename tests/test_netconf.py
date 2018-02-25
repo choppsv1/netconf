@@ -24,7 +24,7 @@ from mockserver import init_mock_server
 
 logger = logging.getLogger(__name__)
 NC_PORT = None
-NC_DEBUG = False
+NC_DEBUG = True
 
 
 def setup_module(unused_module):
@@ -40,6 +40,12 @@ def test_query():
     <global-settings/>
     </devices>
     </filter>
+    </get>
+    """
+
+    query = """
+    <get>
+    <filter type="xpath" select="/devices/global-settings"/>
     </get>
     """
     logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
@@ -62,6 +68,7 @@ def test_context_manager():
     <global-settings/>
     </devices>
     """
+    select = "/devices/global-settings"
     logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
     with client.connect_ssh("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG) as session:
         session.get(select)

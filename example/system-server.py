@@ -65,7 +65,6 @@ class SystemServer(object):
 
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
         """Passed the filter element or None if not present"""
-        logging.debug("GET called")
         data = util.elm("nc:data")
 
         # if False: # If NMDA
@@ -96,8 +95,8 @@ class SystemServer(object):
             boottime = time.time() - uptime_seconds
             boottime = datetime.datetime.fromtimestamp(boottime)
             clockc.append(util.leaf_elm("sys:boot-datetime", date_time_string(boottime)))
-        logging.debug("GET returns")
-        return data
+
+        return util.filter_results(rpc, data, filter_or_none)
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         """Passed the source element"""
@@ -110,7 +109,7 @@ class SystemServer(object):
         # tzname = time.tzname[time.localtime().tm_isdst]
         clockc.append(util.leaf_elm("sys:timezone-utc-offset", int(time.timezone / 100)))
 
-        return data
+        return util.filter_results(rpc, data, filter_or_none)
 
     def rpc_system_restart(self, session, rpc, *params):
         raise error.AccessDeniedAppError(rpc)

@@ -18,10 +18,13 @@
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import copy
+import logging
 from lxml import etree
 from netconf import NSMAP
+from netconf import error
 
 # Tries to somewhat implement RFC6241 filtering
+logger = logging.getLogger(__name__)
 
 
 def qname(tag):
@@ -59,7 +62,80 @@ def is_selection_node(felm):
     return ftext is None or not ftext.strip()
 
 
-def filter_results(self, rpc, data, filter_or_none):
+def xpath_filter_result(data, xpath):
+    """Filter a result given an xpath expression.
+
+    :param data: The nc:data result element.
+    :param xpath: The xpath expression string.
+    :returns: New nc:data result element pruned by the xpath expression.
+
+    >>> xml = '''
+    ... <top>
+    ...   <devs>
+    ...     <dev>
+    ...       <name>dev1</name>
+    ...       <slots>1</slots>
+    ...     </dev>
+    ...     <dev>
+    ...       <name>dev2</name>
+    ...       <slots>2</slots>
+    ...     </dev>
+    ...     <dev>
+    ...       <name>dev3</name>
+    ...       <slots>3</slots>
+    ...     </dev>
+    ...   </devs>
+    ... </top>
+    ... '''
+    >>> data = etree.fromstring(xml.replace(' ', '').replace('\\n', ''))
+    >>> result = xpath_filter_result(data, "/top/devs/dev")
+    >>> etree.tounicode(result)
+    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev><dev><name>dev3</name><slots>3</slots></dev></devs></top>'
+    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev1']")
+    >>> etree.tounicode(result)
+    '<top><devs><dev><name>dev1</name><slots>1</slots></dev></devs></top>'
+    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev2']")
+    >>> etree.tounicode(result)
+    '<top><devs><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
+    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev2'] | /top/devs/dev[name='dev1']")
+    >>> etree.tounicode(result)
+    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
+    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev1'] | /top/devs/dev[name='dev2']")
+    >>> etree.tounicode(result)
+    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
+    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev1'] | /top/devs/dev[slots='2']")
+    >>> etree.tounicode(result)
+    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
+    """
+
+    # First get a copy we can safely modify.
+    data = copy.deepcopy(data)
+    results = data.xpath(xpath, namespaces=NSMAP)
+
+    # Mark the tree up
+    for result in results:
+        # Mark all children
+        for elm in result.iterdescendants():
+            elm.attrib['__filter_marked__'] = ""
+        # Mark this element and all parents
+        while result is not data:
+            result.attrib['__filter_marked__'] = ""
+            result = result.getparent()
+
+    def prunedecendants(elm):
+        for child in elm.getchildren():
+            if '__filter_marked__' not in child.attrib:
+                elm.remove(child)
+            else:
+                prunedecendants(child)
+                del child.attrib['__filter_marked__']
+
+    prunedecendants(data)
+
+    return data
+
+
+def filter_results(rpc, data, filter_or_none):
     """Check for a user filter and prune the result data accordingly.
 
     :param rpc: An RPC message element.
@@ -67,13 +143,24 @@ def filter_results(self, rpc, data, filter_or_none):
     :param filter_or_none: Filter element or None.
     :type filter_or_none: `lxml.Element`
     """
-
-    xpathf = xpath.get_xpath_filter(rpc, filter_or_none)
-    if not xpathf:
+    if filter_or_none is None:
         return data
 
-    # XXX we actually have to implement filtering here!
-    raise ncerror.OperationNotSupportedProtoError(rpc)
+    if 'type' not in filter_or_none.attrib:
+        raise error.MissingAttributeProtoError(rpc, filter_or_none, "type")
+
+    if filter_or_none.attrib['type'] == "xpath":
+        if 'select' not in filter_or_none.attrib:
+            raise error.MissingAttributeProtoError(rpc, filter_or_none, "select")
+        xpf = filter_or_none.attrib['select']
+    elif filter_or_none.attrib['type'] == "subtree":
+        # xpf = Convert subtree filter to xpath!
+        raise error.OperationNotSupportedProtoError(rpc)
+    else:
+        msg = "unexpected type: " + str(filter_or_none.attrib['type'])
+        raise error.BadAttributeProtoError(rpc, filter_or_none, "type", message=msg)
+
+    return xpath_filter_result(data, xpf)
 
 
 def filter_tag_match(filter_tag, elm_tag):

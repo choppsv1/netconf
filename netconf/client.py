@@ -38,7 +38,7 @@ def _is_filter(select):
 
 
 def _get_selection(select):
-    if select is None:
+    if not select:
         return ""
     elif _is_filter(select):
         return """<filter type="subtree">{}</filter>""".format(select)

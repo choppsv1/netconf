@@ -96,7 +96,7 @@ class SystemServer(object):
             boottime = datetime.datetime.fromtimestamp(boottime)
             clockc.append(util.leaf_elm("sys:boot-datetime", date_time_string(boottime)))
 
-        return util.filter_results(rpc, data, filter_or_none)
+        return util.filter_results(rpc, data, filter_or_none, self.server.debug)
 
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         """Passed the source element"""

@@ -70,7 +70,7 @@ def xpath_filter_result(data, xpath):
     :returns: New nc:data result element pruned by the xpath expression.
 
     >>> xml = '''
-    ... <top>
+    ... <data>
     ...   <devs>
     ...     <dev>
     ...       <name>dev1</name>
@@ -85,32 +85,45 @@ def xpath_filter_result(data, xpath):
     ...       <slots>3</slots>
     ...     </dev>
     ...   </devs>
-    ... </top>
+    ... </data>
     ... '''
     >>> data = etree.fromstring(xml.replace(' ', '').replace('\\n', ''))
-    >>> result = xpath_filter_result(data, "/top/devs/dev")
+    >>> result = xpath_filter_result(data, "/devs/dev")
     >>> etree.tounicode(result)
-    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev><dev><name>dev3</name><slots>3</slots></dev></devs></top>'
-    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev1']")
+    '<data><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev><dev><name>dev3</name><slots>3</slots></dev></devs></data>'
+    >>> result = xpath_filter_result(data, "/devs/dev[name='dev1']")
     >>> etree.tounicode(result)
-    '<top><devs><dev><name>dev1</name><slots>1</slots></dev></devs></top>'
-    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev2']")
+    '<data><devs><dev><name>dev1</name><slots>1</slots></dev></devs></data>'
+    >>> result = xpath_filter_result(data, "/devs/dev[name='dev2']")
     >>> etree.tounicode(result)
-    '<top><devs><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
-    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev2'] | /top/devs/dev[name='dev1']")
+    '<data><devs><dev><name>dev2</name><slots>2</slots></dev></devs></data>'
+    >>> result = xpath_filter_result(data, "/devs/dev[name='dev2'] | /devs/dev[name='dev1']")
     >>> etree.tounicode(result)
-    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
-    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev1'] | /top/devs/dev[name='dev2']")
+    '<data><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></data>'
+    >>> result = xpath_filter_result(data, "/devs/dev[name='dev1'] | /devs/dev[name='dev2']")
     >>> etree.tounicode(result)
-    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
-    >>> result = xpath_filter_result(data, "/top/devs/dev[name='dev1'] | /top/devs/dev[slots='2']")
+    '<data><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></data>'
+    >>> result = xpath_filter_result(data, "/devs/dev[name='dev1'] | /devs/dev[slots='2']")
     >>> etree.tounicode(result)
-    '<top><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></top>'
+    '<data><devs><dev><name>dev1</name><slots>1</slots></dev><dev><name>dev2</name><slots>2</slots></dev></devs></data>'
     """
 
     # First get a copy we can safely modify.
     data = copy.deepcopy(data)
-    results = data.xpath(xpath, namespaces=NSMAP)
+
+    results = []
+    children = []
+
+    # Have to re-root the children to avoid having to match "/nc:data"
+    for child in data.getchildren():
+        data.remove(child)
+        children.append(child)
+        newtree = etree.ElementTree(child)
+        results.extend(newtree.xpath(xpath, namespaces=NSMAP))
+
+    # Add the children of data back.
+    for child in children:
+        data.append(child)
 
     # Mark the tree up
     for result in results:
@@ -135,7 +148,7 @@ def xpath_filter_result(data, xpath):
     return data
 
 
-def filter_results(rpc, data, filter_or_none):
+def filter_results(rpc, data, filter_or_none, debug=False):
     """Check for a user filter and prune the result data accordingly.
 
     :param rpc: An RPC message element.
@@ -160,6 +173,7 @@ def filter_results(rpc, data, filter_or_none):
         msg = "unexpected type: " + str(filter_or_none.attrib['type'])
         raise error.BadAttributeProtoError(rpc, filter_or_none, "type", message=msg)
 
+    logger.debug("Filtering on xpath expression: {}".format(xpf))
     return xpath_filter_result(data, xpf)
 
 

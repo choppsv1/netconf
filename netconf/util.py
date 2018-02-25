@@ -114,6 +114,8 @@ def xpath_filter_result(data, xpath):
     results = []
     children = []
 
+    # XXX Need to reset the namespace declarations to those found in the context of the filter node.
+
     # Have to re-root the children to avoid having to match "/nc:data"
     for child in data.getchildren():
         data.remove(child)

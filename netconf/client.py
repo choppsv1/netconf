@@ -184,6 +184,7 @@ class NetconfClientSession(NetconfSession):
         :return: The RPC message id which can be passed to wait_reply for the results.
         """
         # Not sure it makes sense to go back to a string here, but OK.
+        # Need to be a bit careful about namespaces the default needs to be nc:
         if hasattr(rpc, "nsmap"):
             rpc = etree.tounicode(rpc)
 
@@ -232,8 +233,10 @@ class NetconfClientSession(NetconfSession):
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
-        getelm = util.elm("nc:get-config")
-        getelm.append(util.leaf_elm("nc:source", source))
+        getelm = util.elm("get-config")
+        if not hasattr(source, "nsmap"):
+            source = util.elm(source)
+        util.subelm(util.subelm(getelm, "source"), source)
         _get_selection(getelm, select)
         return self.send_rpc_async(getelm)
 
@@ -266,7 +269,7 @@ class NetconfClientSession(NetconfSession):
         :raises: SessionError
         """
 
-        getelm = util.elm("nc:get")
+        getelm = util.elm("get")
         _get_selection(getelm, select)
         return self.send_rpc_async(getelm)
 

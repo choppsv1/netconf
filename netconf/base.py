@@ -287,7 +287,8 @@ class NetconfSession(object):
         with self.lock:
             pkt_stream = self.pkt_stream
         if not pkt_stream:
-            logger.debug("Dropping message b/c no stream (%d): %s", len(msg), msg)
+            logger.info("Dropping message b/c no connection stream (%d): %s", len(msg), msg)
+            return
         if self.debug:
             logger.debug("Sending message (%d): %s", len(msg), msg)
         pkt_stream.send_pdu(XML_HEADER + msg, self.new_framing)

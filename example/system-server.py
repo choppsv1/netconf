@@ -136,11 +136,13 @@ def main(*margs):
     auth = server.SSHUserPassController(username=args.username, password=args.password)
     s = SystemServer(args.port, host_key, auth, args.debug)
 
-    try:
+    if sys.stdout.isatty():
         print("^C to quit server")
-        sys.stdin.read()
-    except KeyboardInterrupt:
-        pass
+    try:
+        while True:
+            time.sleep(1)
+    except Exception:
+        print("quitting server")
 
     s.close()
 

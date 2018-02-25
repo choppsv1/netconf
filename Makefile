@@ -42,3 +42,9 @@ run-test:
 
 pypi-upload:
 	python setup.py sdist upload
+
+run-server:
+	python example/system-server.py
+
+kill-server:
+	pkill -f "python example/system-server.py"

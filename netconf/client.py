@@ -29,6 +29,7 @@ from monotonic import monotonic
 from netconf import NSMAP
 from netconf.base import NetconfSession
 from netconf.error import RPCError, SessionError, ReplyTimeoutError
+from netconf import util
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +38,24 @@ def _is_filter(select):
     return select.lstrip().startswith("<")
 
 
-def _get_selection(select):
+def _get_selection(elm, select):
     if not select:
-        return ""
+        return
+
+    # XXX Do we want to add any namespace stuff to the filter node here?
+
+    felm = util.elm("nc:filter")
+    if hasattr(select, "nsmap"):
+        felm.attrib["type"] = "subtree"
+        felm.append(select)
     elif _is_filter(select):
-        return """<filter type="subtree">{}</filter>""".format(select)
+        felm.attrib["type"] = "subtree"
+        felm.append(etree.fromstring(select, namespace=NSMAP))
     else:
-        return """<filter type="xpath" select="{}"/>""".format(select)
+        felm.attrib["type"] = "xpath"
+        felm.attrib["select"] = select
+
+    elm.append(felm)
 
 
 class Timeout(object):
@@ -165,12 +177,16 @@ class NetconfClientSession(NetconfSession):
         """Send a generic RPC to the server and await the reply.
 
         :param rpc: The XML of the netconf RPC, not including the <rpc> tag.
-        :type rpc: str
+        :type rpc: str or `lxml.Element`
         :param noreply: True if no reply is required.
         :type noreply: Boolean
 
         :return: The RPC message id which can be passed to wait_reply for the results.
         """
+        # Not sure it makes sense to go back to a string here, but OK.
+        if hasattr(rpc, "nsmap"):
+            rpc = etree.tounicode(rpc)
+
         # Get the next message id
         with self.cv:
             assert self.session_id is not None
@@ -216,10 +232,10 @@ class NetconfClientSession(NetconfSession):
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
-        rpc = "<get-config><source><{}/></source>".format(source)
-        rpc += _get_selection(select)
-        rpc += "</get-config>"
-        return self.send_rpc_async(rpc)
+        getelm = util.elm("nc:get-config")
+        getelm.append(util.leaf_elm("nc:source", source))
+        _get_selection(getelm, select)
+        return self.send_rpc_async(getelm)
 
     def get_config(self, source="running", select=None, timeout=None):
         """Get config for a given source from the server. If `select` is specified it
@@ -250,8 +266,9 @@ class NetconfClientSession(NetconfSession):
         :raises: SessionError
         """
 
-        rpc = "<get>" + _get_selection(select) + "</get>"
-        return self.send_rpc_async(rpc)
+        getelm = util.elm("nc:get")
+        _get_selection(getelm, select)
+        return self.send_rpc_async(getelm)
 
     def get(self, select=None, timeout=None):
         """Get operational state from the server. If `select` is specified it is either

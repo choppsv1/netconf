@@ -50,7 +50,7 @@ def _get_selection(elm, select):
         felm.append(select)
     elif _is_filter(select):
         felm.attrib["type"] = "subtree"
-        felm.append(etree.fromstring(select, namespace=NSMAP))
+        felm.append(etree.fromstring(select))
     else:
         felm.attrib["type"] = "xpath"
         felm.attrib["select"] = select

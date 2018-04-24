@@ -366,7 +366,8 @@ class NetconfSession(object):
             if NC_BASE_11 in self.capabilities:
                 self.new_framing = True
             elif NC_BASE_10 not in self.capabilities:
-                raise SessionError("Server doesn't implement 1.0 or 1.1 of netconf")
+                who = "Server" if is_server else "Client"
+                raise SessionError("{} doesn't implement 1.0 or 1.1 of netconf".format(who))
 
             # Get session ID.
             try:

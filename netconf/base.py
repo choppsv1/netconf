@@ -361,7 +361,7 @@ class NetconfSession(object):
 
             # Store capabilities
             for cap in caps:
-                self.capabilities.add(cap.text)
+                self.capabilities.add(cap.text.strip())
 
             if NC_BASE_11 in self.capabilities:
                 self.new_framing = True

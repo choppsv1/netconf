@@ -130,17 +130,17 @@ def xpath_filter_result(data, xpath):
     # Mark the tree up
     for result in results:
         # Mark all children
-        for elm in result.iterdescendants():
-            elm.attrib['__filter_marked__'] = ""
+        for e in result.iterdescendants():
+            e.attrib['__filter_marked__'] = ""
         # Mark this element and all parents
         while result is not data:
             result.attrib['__filter_marked__'] = ""
             result = result.getparent()
 
-    def prunedecendants(elm):
-        for child in elm.getchildren():
+    def prunedecendants(e):
+        for child in e.getchildren():
             if '__filter_marked__' not in child.attrib:
-                elm.remove(child)
+                e.remove(child)
             else:
                 prunedecendants(child)
                 del child.attrib['__filter_marked__']
@@ -161,21 +161,22 @@ def filter_results(rpc, data, filter_or_none, debug=False):
     if filter_or_none is None:
         return data
 
-    if 'type' not in filter_or_none.attrib:
-        raise error.MissingAttributeProtoError(rpc, filter_or_none, "type")
-
-    if filter_or_none.attrib['type'] == "xpath":
+    if 'type' not in filter_or_none.attrib or filter_or_none.attrib['type'] == "subtree":
+        # Check for the pathalogical case of empty filter since that's easy to implement.
+        if not filter_or_none.getchildren():
+            return elm("data")
+        # xpf = Convert subtree filter to xpath!
+        logger.warning("Filtering with subtree not implemented yet.")
+        raise error.OperationNotSupportedProtoError(rpc)
+    elif filter_or_none.attrib['type'] == "xpath":
         if 'select' not in filter_or_none.attrib:
             raise error.MissingAttributeProtoError(rpc, filter_or_none, "select")
         xpf = filter_or_none.attrib['select']
-    elif filter_or_none.attrib['type'] == "subtree":
-        # xpf = Convert subtree filter to xpath!
-        raise error.OperationNotSupportedProtoError(rpc)
     else:
         msg = "unexpected type: " + str(filter_or_none.attrib['type'])
         raise error.BadAttributeProtoError(rpc, filter_or_none, "type", message=msg)
 
-    logger.debug("Filtering on xpath expression: {}".format(xpf))
+    logger.debug("Filtering on xpath expression: %s", str(xpf))
     return xpath_filter_result(data, xpf)
 
 

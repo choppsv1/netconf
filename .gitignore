@@ -10,6 +10,8 @@
 *.egg-info/
 *.pyc
 *.so
+AUTHORS
+ChangeLog
 EGG-INFO/
 GPATH
 GRTAGS

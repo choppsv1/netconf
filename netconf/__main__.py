@@ -42,6 +42,12 @@ def parse_password_arg(password):
 def main(*margs):
     parser = argparse.ArgumentParser("Netconf Client Utility")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument(
+        '--edit-config',
+        const="",
+        nargs='?',
+        help=("Perform <edit-config>. arg value is the method ('merge' or 'replace') " +
+              " 'merge' if not specified. New config is in 'infile' or stdin"))
     parser.add_argument('--host', default="localhost", help='Netconf server hostname')
     parser.add_argument(
         '--get',
@@ -68,7 +74,7 @@ def main(*margs):
     parser.add_argument('--passenv', default=None, help=argparse.SUPPRESS)
     parser.add_argument('--port', type=int, default=830, help='Netconf server port')
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet operation")
-    parser.add_argument('--source', default="running", help="Source for get config")
+    parser.add_argument('--source', default="running", help="Source for edit or get config")
     parser.add_argument('--timeout', type=float, help="Timeout for command in fractional seconds")
     parser.add_argument('-u', '--username', default="admin", help='Netconf username')
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
@@ -106,7 +112,6 @@ def main(*margs):
         result = session.get_config(args.source, args.get_config, args.timeout)
         result = "  " + etree.tounicode(result, pretty_print=True)
     else:
-        print("get: {}".format(args.get))
         if args.infile:
             xml = open(args.infile).read()
         else:
@@ -114,7 +119,12 @@ def main(*margs):
         if not xml:
             print("Nothing to do.", file=sys.stderr)
             sys.exit(1)
-        result = session.send_rpc(xml)[2]
+
+        if args.edit_config is None:
+            result = session.send_rpc(xml)[2]
+        else:
+            result = session.edit_config(args.source, args.edit_config, xml, args.timeout)
+            result = etree.tounicode(result, pretty_print=True)
     sys.stdout.write(result)
     session.close()
 

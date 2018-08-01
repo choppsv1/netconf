@@ -223,6 +223,50 @@ class NetconfClientSession(NetconfSession):
         msg_id = self.send_rpc_async(rpc)
         return self.wait_reply(msg_id, timeout)
 
+    def edit_config_async(self, target, mode, newconf):
+        """Operate on ~config~ in ~target~ using ~newconf~ according to ~mode~ ("merge", "replace" or
+        "none"). If "none" then no nodes are modified until a element specifies the mode as an
+        attribute.
+
+        :param target: the target of the config, defaults to "running".
+        :param method: "merge", "replace" or "none"
+        :param newconf: The new configuration.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
+        if hasattr(target, "nsmap"):
+            target = target.tag
+
+        rpc = """
+<edit-config>
+  <target>
+    <""" + target + """/>
+  </target>
+"""
+        if mode is not None and mode != "":
+            rpc += "  <default-operation>{}</default-operation>\n".format(mode)
+        rpc += newconf
+        rpc += "</edit-config>\n"
+        return self.send_rpc_async(rpc)
+
+    def edit_config(self, target="running", method="", newconf="", timeout=None):
+        """Operate on ~config~ in ~target~ using ~newconf~ according to ~mode~ ("merge", "replace" or
+        "none"). If "none" then no nodes are modified until a element specifies the mode as an
+        attribute.
+
+        :param target: the target of the config, defaults to "running".
+        :param method: "merge" (netconf default), "replace" or "none".
+        :param newconf: The new configuration.
+        :param timeout: A value in fractional seconds to wait for the operation to complete or
+                        `None` for no timeout.
+        :return: The result of the edit operation
+        :rtype: lxml.Element
+        :raises: ReplyTimeoutError, RPCError, SessionError
+        """
+        msg_id = self.edit_config_async(target, method, newconf)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply
+
     def get_config_async(self, source, select):
         """Get config asynchronously for a given source from the server. If `select` is
         specified it is either an XPATH expression or XML subtree filter for

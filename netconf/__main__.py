@@ -23,9 +23,8 @@ import logging
 import os
 import sys
 from lxml import etree
-from paramiko.pkey import PKey
-
-import netconf.client as client
+from sshutil.server import from_private_key_file
+from . import client
 
 
 def parse_password_arg(password):
@@ -89,7 +88,7 @@ def main(*margs):
         args.password = parse_password_arg(args.password)
 
     if args.keyfile:
-        args.password = PKey.from_private_key_file(args.keyfile, password=args.password)
+        args.password = from_private_key_file(args.keyfile, password=args.password)
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)

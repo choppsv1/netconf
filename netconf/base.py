@@ -3,6 +3,7 @@
 # February 19 2015, Christian Hopps <chopps@gmail.com>
 #
 # Copyright (c) 2015, Deutsche Telekom AG
+# Copyright (c) 2019 by Christian E. Hopps.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -268,7 +269,7 @@ class NetconfSession(object):
         self.new_framing = False
         self.capabilities = set()
         self.reader_thread = None
-        self.lock = threading.Lock()
+        self.slock = threading.Lock()
         self.session_id = session_id
         self.session_open = False
 
@@ -277,14 +278,14 @@ class NetconfSession(object):
             self.close()
 
     def is_active(self):
-        with self.lock:
+        with self.slock:
             return self.pkt_stream and self.pkt_stream.is_active()
 
     def __str__(self):
         return "NetconfSession(sid:{})".format(self.session_id)
 
     def send_message(self, msg):
-        with self.lock:
+        with self.slock:
             pkt_stream = self.pkt_stream
         if not pkt_stream:
             logger.info("Dropping message b/c no connection stream (%d): %s", len(msg), msg)
@@ -295,7 +296,7 @@ class NetconfSession(object):
 
     def _receive_message(self):
         # private method to receive a full message.
-        with self.lock:
+        with self.slock:
             if self.reader_thread and not self.reader_thread.keep_running:
                 return None
             pkt_stream = self.pkt_stream
@@ -322,7 +323,7 @@ class NetconfSession(object):
         if self.debug:
             logger.debug("%s: Closing.", str(self))
 
-        with self.lock:
+        with self.slock:
             if self.session_open:
                 self.session_open = False
                 self.session_id = None
@@ -419,7 +420,7 @@ class NetconfSession(object):
         reader_thread = self.reader_thread
         try:
             while self.pkt_stream:
-                with self.lock:
+                with self.slock:
                     pkt_stream = self.pkt_stream
                     if not reader_thread.keep_running:
                         break
@@ -435,7 +436,7 @@ class NetconfSession(object):
                         logger.debug("Client remote closed, exiting reader thread.")
                     closed = True
 
-                with self.lock:
+                with self.slock:
                     if closed:
                         reader_thread.keep_running = False
                     if not reader_thread.keep_running:
@@ -479,7 +480,7 @@ class NetconfSession(object):
                 logger.debug("Socket error in reader thread [exiting]: %s", str(error))
             self.close()
         except Exception as error:
-            with self.lock:
+            with self.slock:
                 keep_running = reader_thread.keep_running
             if keep_running:
                 logger.error(

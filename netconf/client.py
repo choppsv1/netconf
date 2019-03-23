@@ -334,6 +334,58 @@ class NetconfClientSession(NetconfSession):
         _, reply, _ = self.wait_reply(msg_id, timeout)
         return reply.find("nc:data", namespaces=NSMAP)
 
+    def lock_async(self, target):
+        """Lock target datastore asynchronously.
+
+        :param target: A string specifying the config datastore to lock.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
+        lockelm = util.elm("lock")
+        if not hasattr(target, "nsmap"):
+            target = util.elm(target)
+        util.subelm(util.subelm(lockelm, "target"), target)
+        return self.send_rpc_async(lockelm)
+
+    def lock(self, target="running", timeout=None):
+        """Lock target datastore asynchronously.
+
+        If `timeout` is not `None` it specifies how long to wait for the get operation to complete.
+
+        :param target: A string specifying the config datastore to lock.
+        :return: None
+        :raises: RPCError, SessionError
+        """
+        msg_id = self.lock_async(target)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply.find("nc:data", namespaces=NSMAP)
+
+    def unlock_async(self, target):
+        """Unlock target datastore asynchronously.
+
+        :param target: A string specifying the config datastore to unlock.
+        :return: The RPC message id which can be passed to wait_reply for the results.
+        :raises: SessionError
+        """
+        unlockelm = util.elm("unlock")
+        if not hasattr(target, "nsmap"):
+            target = util.elm(target)
+        util.subelm(util.subelm(unlockelm, "target"), target)
+        return self.send_rpc_async(unlockelm)
+
+    def unlock(self, target="running", timeout=None):
+        """Unlock target datastore asynchronously.
+
+        If `timeout` is not `None` it specifies how long to wait for the get operation to complete.
+
+        :param target: A string specifying the config datastore to unlock.
+        :return: None
+        :raises: RPCError, SessionError
+        """
+        msg_id = self.unlock_async(target)
+        _, reply, _ = self.wait_reply(msg_id, timeout)
+        return reply.find("nc:data", namespaces=NSMAP)
+
     # ----------------
     # Internal Methods
     # ----------------
@@ -382,9 +434,9 @@ class NetconfClientSession(NetconfSession):
                             logger.debug("Ignoring unwanted reply for message-id %s", str(msg_id))
                         return
                     elif self.rpc_out[msg_id] is not None:
-                        logger.warning("Received multiple replies for message-id %s:"
-                                       " before: %s now: %s", str(msg_id), str(
-                                           self.rpc_out[msg_id]), str(msg))
+                        logger.warning(
+                            "Received multiple replies for message-id %s:"
+                            " before: %s now: %s", str(msg_id), str(self.rpc_out[msg_id]), str(msg))
 
                     if self.debug:
                         logger.debug("%s: Received rpc-reply message-id: %s", str(self),

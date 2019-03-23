@@ -211,12 +211,12 @@ class NetconfServerSession(base.NetconfSession):
 
     This object will be passed to a the server RPC methods.
     """
-    handled_rpc_methods = set(["close-session", "kill-session"])
+    handled_rpc_methods = set(["close-session", "lock", "kill-session", "unlock"])
 
     def __init__(self, channel, server, unused_extra_args, debug):
         self.server = server
 
-        sid = server._allocate_session_id()
+        sid = self.server._allocate_session_id()
         if debug:
             logger.debug("NetconfServerSession: Creating session-id %s", str(sid))
 
@@ -240,6 +240,18 @@ class NetconfServerSession(base.NetconfSession):
         if self.debug:
             logger.debug("%s: Closing.", str(self))
 
+        # Cleanup any locks
+        locked = self.server.unlock_target_any(self)
+        method = getattr(self.methods, "rpc_unlock", None)
+        if method is not None:
+            try:
+                # Let the user know.
+                for target in locked:
+                    method(self, None, target)
+            except Exception as ex:
+                if self.debug:
+                    logger.debug("%s: Ignoring exception in rpc_unlock during close: %s", str(self),
+                                 str(ex))
         try:
             super(NetconfServerSession, self).close()
         except EOFError:
@@ -321,6 +333,7 @@ class NetconfServerSession(base.NetconfSession):
                 rpcname = rpc_method.tag.replace(qmap('nc'), "")
                 params = rpc_method.getchildren()
                 paramslen = len(params)
+                lock_target = None
 
                 if self.debug:
                     logger.debug("%s: RPC: %s: paramslen: %s", str(self), rpcname, str(paramslen))
@@ -367,6 +380,33 @@ class NetconfServerSession(base.NetconfSession):
                             unknown_elm = params[0] if params[0] != source_param else params[1]
                             raise ncerror.UnknownElementProtoError(rpc, unknown_elm)
                     params = [source_param, filter_param]
+                elif rpcname == "lock" or rpcname == "unlock":
+                    if paramslen != 1:
+                        raise ncerror.MalformedMessageRPCError(rpc)
+                    target_param = rpc_method.find("nc:target", namespaces=NSMAP)
+                    if target_param is None:
+                        raise ncerror.MissingElementProtoError(rpc, util.qname("nc:target"))
+                    elms = target_param.getchildren()
+                    if len(elms) != 1:
+                        raise ncerror.MissingElementProtoError(rpc, util.qname("nc:target"))
+                    lock_target = elms[0].tag.replace(qmap('nc'), "")
+                    if lock_target not in ["running", "candidate"]:
+                        raise ncerror.BadElementProtoError(rpc, util.qname("nc:target"))
+                    params = [lock_target]
+
+                    if rpcname == "lock":
+                        logger.error("%s: Lock Target: %s", str(self), lock_target)
+                        # Try and obtain the lock.
+                        locksid = self.server.lock_target(self, lock_target)
+                        if locksid:
+                            raise ncerror.LockDeniedProtoError(rpc, locksid)
+                    elif rpcname == "unlock":
+                        logger.error("%s: Unlock Target: %s", str(self), lock_target)
+                        # Make sure we have the lock.
+                        locksid = self.server.is_target_locked(lock_target)
+                        if locksid != self.session_id:
+                            # An odd error to return
+                            raise ncerror.LockDeniedProtoError(rpc, locksid)
 
                 #------------------
                 # Call the method.
@@ -378,13 +418,30 @@ class NetconfServerSession(base.NetconfSession):
                     # namespace collisions, but that seems reasonable for now.
                     rpcname = rpcname.rpartition("}")[-1]
                     method_name = "rpc_" + rpcname.replace('-', '_')
-                    method = getattr(self.methods, method_name, self._rpc_not_implemented)
-                    if self.debug:
-                        logger.debug("%s: Calling method: %s", str(self), method_name)
-                    reply = method(self, rpc, *params)
-                    self._send_rpc_reply(reply, rpc)
-                except NotImplementedError:
-                    raise ncerror.OperationNotSupportedProtoError(rpc)
+                    method = getattr(self.methods, method_name, None)
+
+                    if method is None:
+                        if rpcname in self.handled_rpc_methods:
+                            self._send_rpc_reply(etree.Element("ok"), rpc)
+                            method = None
+                        else:
+                            method = self._rpc_not_implemented
+
+                    if method is not None:
+                        if self.debug:
+                            logger.debug("%s: Calling method: %s", str(self), method_name)
+                        reply = method(self, rpc, *params)
+                        self._send_rpc_reply(reply, rpc)
+                except Exception:
+                    # If user raised error unlock if this was lock
+                    if rpcname == "lock" and lock_target:
+                        self.server.unlock_target(self, lock_target)
+                    raise
+
+                # If this was unlock and we're OK, release the lock.
+                if rpcname == "unlock":
+                    self.server.unlock_target(self, lock_target)
+
             except ncerror.MalformedMessageRPCError as msgerr:
                 if self.new_framing:
                     if self.debug:
@@ -462,6 +519,89 @@ class NetconfMethods(object):
         """
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
+    def rpc_lock(self, session, rpc, target):
+        """Lock the given target datastore.
+
+        The server tracks the lock automatically which can be checked using the
+        server `is_locked` method. This function is called after the lock is
+        granted.
+
+        This server code can only verify if a lock has been granted or not,
+        it cannot actually verify all the lock available conditions set forth
+        in RFC6241. If any of the following can be true the user must also check
+        this by implementing this function:
+
+        RFC6241:
+
+            A lock MUST NOT be granted if any of the following conditions is
+            true:
+
+            * A lock is already held by any NETCONF session or another
+            entity. ** The server checks for other sessions but cannot check
+            if another entity (e.g., CLI) has been granted the lock.
+
+            * The target configuration is <candidate>, it has already been
+            modified, and these changes have not been committed or rolled
+            back. ** The server code cannot check this.
+
+            * The target configuration is <running>, and another NETCONF
+            session has an ongoing confirmed commit (Section 8.4). ** The server
+            code cannot check this.
+
+        Implement this method and if the lock should not be granted raise the following
+        error (or anything else appropriate).
+
+            raise netconf.error.LockDeniedProtoError(rpc, <session-id-holding-lock>)
+
+        :param session: The server session with the client.
+        :type session: `NetconfServerSession`
+        :param rpc: The topmost element in the received message.
+        :type rpc: `lxml.Element`
+        :param target: The tag name of the target child element indicating
+                       which config datastore should be locked.
+        :type target_elm: str
+        :return: None
+        :raises: `error.RPCServerError` which will be used to construct an
+                 XML error response. The lock will be released if an error
+                 is raised.
+        """
+        del rpc, session, target  # avoid unused errors from pylint
+        return
+
+    def rpc_unlock(self, session, rpc, target):
+        """Unlock the given target datastore.
+
+        If this method raises an error the server code will *not* release
+        the lock.
+
+        :param session: The server session with the client.
+        :type session: `NetconfServerSession`
+        :param rpc: The topmost element in the received message or None if the
+                    session is being closed and this is notification of lock release.
+                    In this latter case any exception raised will be ignored.
+        :type rpc: `lxml.Element` or None
+        :param target: The tag name of the target child element indicating
+                       which config datastore should be locked.
+        :type target_elm: str
+        :return: None
+        :raises: `error.RPCServerError` which will be used to construct an
+                 XML error response. The lock will be not be released if an
+                 error is raised.
+        """
+        del rpc, session, target  # avoid unused errors from pylint
+        return
+
+    #-----------------------------------------------------------------------
+    # Override these definitions if you also would like to do more than the
+    # default actions.
+    #-----------------------------------------------------------------------
+
+    def rpc_close_session(self, session, rpc, *unused_params):
+        pass
+
+    def rpc_kill_session(self, session, rpc, *unused_params):
+        pass
+
     #---------------------------------------------------------------------------
     # These definitions will change to include required parameters like get and
     # get-config
@@ -476,14 +616,6 @@ class NetconfMethods(object):
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
     def rpc_edit_config(self, unused_session, rpc, *unused_params):
-        """XXX API subject to change -- unfinished"""
-        raise ncerror.OperationNotSupportedProtoError(rpc)
-
-    def rpc_lock(self, unused_session, rpc, *unused_params):
-        """XXX API subject to change -- unfinished"""
-        raise ncerror.OperationNotSupportedProtoError(rpc)
-
-    def rpc_unlock(self, unused_session, rpc, *unused_params):
         """XXX API subject to change -- unfinished"""
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
@@ -502,6 +634,11 @@ class NetconfSSHServer(sshutil.server.SSHServer):
     def __init__(self, server_ctl=None, server_methods=None, port=830, host_key=None, debug=False):
         self.server_methods = server_methods if server_methods is not None else NetconfMethods()
         self.session_id = 1
+        self.session_locks_lock = threading.Lock()
+        self.session_locks = {
+            "running": 0,
+            "candidate": 0,
+        }
         super(NetconfSSHServer, self).__init__(
             server_ctl,
             server_session_class=NetconfServerSession,
@@ -520,6 +657,48 @@ class NetconfSSHServer(sshutil.server.SSHServer):
 
     def __str__(self):
         return "NetconfSSHServer(port={})".format(self.port)
+
+    def unlock_target_any(self, session):
+        """Unlock any targets locked by this session.
+
+        Returns list of targets that this session had locked."""
+        locked = []
+        with self.lock:
+            with self.session_locks_lock:
+                sid = session.session_id
+                for target in self.session_locks:
+                    if self.session_locks[target] == sid:
+                        self.session_locks[target] = 0
+                        locked.append(target)
+                return locked
+
+    def unlock_target(self, session, target):
+        """Unlock the given target."""
+        with self.lock:
+            with self.session_locks_lock:
+                if self.session_locks[target] == session.session_id:
+                    self.session_locks[target] = 0
+                    return True
+                return False
+
+    def lock_target(self, session, target):
+        """Try to obtain target lock.
+        Return 0 on success or the session ID of the lock holder.
+        """
+        with self.lock:
+            with self.session_locks_lock:
+                if self.session_locks[target]:
+                    return self.session_locks[target]
+                self.session_locks[target] = session.session_id
+                return 0
+
+    def is_target_locked(self, target):
+        """Returns the sesions ID who owns the lock or 0 if not locked."""
+        with self.lock:
+            with self.session_locks_lock:
+                if target not in self.session_locks:
+                    return None
+                return self.session_locks[target]
 
 
 __author__ = 'Christian Hopps'

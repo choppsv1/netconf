@@ -112,14 +112,6 @@ class MockMethods(object):
     def rpc_edit_config(self, unused_session, rpc, *unused_params):
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
-    # XXX The API WILL CHANGE consider unfinished
-    def rpc_lock(self, unused_session, rpc, *unused_params):
-        raise ncerror.OperationNotSupportedProtoError(rpc)
-
-    # XXX The API WILL CHANGE consider unfinished
-    def rpc_unlock(self, unused_session, rpc, *unused_params):
-        raise ncerror.OperationNotSupportedProtoError(rpc)
-
 
 def init_mock_server():
     # logging.basicConfig(level=logging.DEBUG)

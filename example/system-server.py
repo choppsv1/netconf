@@ -63,29 +63,41 @@ class SystemServer(object):
                     "capability").text = "urn:ietf:params:netconf:capability:xpath:1.0"
         util.subelm(capabilities, "capability").text = NSMAP["sys"]
 
+    def _add_config (self, data):
+        sysc = util.subelm(data, "sys:system")
+
+        # System Identification
+        sysc.append(util.leaf_elm("sys:hostname", socket.gethostname()))
+
+        # System Clock
+        clockc = util.subelm(sysc, "sys:clock")
+        tzname = time.tzname[time.localtime().tm_isdst]
+        clockc.append(util.leaf_elm("sys:timezone-utc-offset", int(time.timezone / 100)))
+
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
         """Passed the filter element or None if not present"""
         data = util.elm("nc:data")
 
-        # if False: # If NMDA
-        #     sysc = util.subelm(data, "system")
-        #     sysc.append(util.leaf_elm("hostname", socket.gethostname()))
+        #
+        # Config Data
+        #
 
-        #     # Clock
-        #     clockc = util.subelm(sysc, "clock")
-        #     tzname = time.tzname[time.localtime().tm_isdst]
-        #     clockc.append(util.leaf_elm("timezone-utc-offset", int(time.timezone / 100)))
+        self._add_config(data)
 
-        sysc = util.subelm(data, "sys:system-state")
-        platc = util.subelm(sysc, "sys:system")
+        #
+        # State Data
+        #
+        sysd = util.subelm(data, "sys:system-state")
 
+        # System Identification
+        platc = util.subelm(sysd, "sys:platform")
         platc.append(util.leaf_elm("sys:os-name", platform.system()))
         platc.append(util.leaf_elm("sys:os-release", platform.release()))
         platc.append(util.leaf_elm("sys:os-version", platform.version()))
         platc.append(util.leaf_elm("sys:machine", platform.machine()))
 
-        # Clock
-        clockc = util.subelm(sysc, "sys:clock")
+        # System Clock
+        clockc = util.subelm(sysd, "sys:clock")
         now = datetime.datetime.now()
         clockc.append(util.leaf_elm("sys:current-datetime", date_time_string(now)))
 
@@ -101,14 +113,10 @@ class SystemServer(object):
     def rpc_get_config(self, session, rpc, source_elm, filter_or_none):  # pylint: disable=W0613
         """Passed the source element"""
         data = util.elm("nc:data")
-        sysc = util.subelm(data, "sys:system")
-        sysc.append(util.leaf_elm("sys:hostname", socket.gethostname()))
-
-        # Clock
-        clockc = util.subelm(sysc, "sys:clock")
-        # tzname = time.tzname[time.localtime().tm_isdst]
-        clockc.append(util.leaf_elm("sys:timezone-utc-offset", int(time.timezone / 100)))
-
+        #
+        # Config Data
+        #
+        self._add_config(data)
         return util.filter_results(rpc, data, filter_or_none)
 
     def rpc_system_restart(self, session, rpc, *params):
@@ -131,7 +139,7 @@ def main(*margs):
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     args.password = parse_password_arg(args.password)
-    host_key = os.path.dirname(__file__) + "/server-key"
+    host_key = os.path.join(os.path.abspath(os.path.dirname(__file__)), "server-key")
 
     auth = server.SSHUserPassController(username=args.username, password=args.password)
     s = SystemServer(args.port, host_key, auth, args.debug)

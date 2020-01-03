@@ -165,9 +165,9 @@ def filter_results(rpc, data, filter_or_none, debug=False):
         # Check for the pathalogical case of empty filter since that's easy to implement.
         if not filter_or_none.getchildren():
             return elm("data")
-        # xpf = Convert subtree filter to xpath!
-        logger.warning("Filtering with subtree not implemented yet.")
-        raise error.OperationNotSupportedProtoError(rpc)
+
+        xpf = filter_to_xpath(filter_or_none)
+
     elif filter_or_none.attrib['type'] == "xpath":
         if 'select' not in filter_or_none.attrib:
             raise error.MissingAttributeProtoError(rpc, filter_or_none, "select")
@@ -409,6 +409,40 @@ def filter_list_iter(filter_list, key_xpath, keys):
                 #     yield key, filter_elm
                 # except ValueError:
                 #     pass
+
+
+def linearize(el, ns, path):
+
+    for child in el:
+        if len(child) > 0:
+            tag = etree.QName(child.tag).localname
+            text = f'{path}/{ns}:{tag}'
+            yield from linearize(child, ns, text)
+        else:
+            tag = etree.QName(child.tag).localname
+            text = f'/{ns}:{tag}'
+            if child.text is not None and child.text.strip() != '':
+                text = f'[{ns}:{tag}="{child.text.strip()}"]'
+            yield path + text
+
+
+def resolve_ns(nsmap):
+    ns = 'xmlns'
+    for name, uri in nsmap.items():
+        if name is not None:
+            ns = name
+    return ns
+
+
+def filter_to_xpath(filter_or_none):
+    root = filter_or_none[0]
+    root_tag = etree.QName(root.tag).localname
+    ns = resolve_ns(root.nsmap)
+    xpaths = []
+    for path in linearize(root, ns, f'/{ns}:{root_tag}'):
+        xpaths.append(path)
+
+    return ' | '.join(xpaths)
 
 
 __author__ = 'Christian Hopps'

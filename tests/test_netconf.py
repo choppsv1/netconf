@@ -32,22 +32,28 @@ def setup_module(unused_module):
     NC_PORT = init_mock_server()
 
 
-def test_query():
-    query = """
-    <get>
-    <filter type="subtree">
-    <devices xmlns="http://tail-f.com/ns/ncs">
-    <global-settings/>
-    </devices>
-    </filter>
-    </get>
-    """
-
+def test_xpath_query():
     query = """
     <get>
     <filter type="xpath" select="/devices/global-settings"/>
     </get>
     """
+    logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
+    session = client.NetconfSSHSession("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG)
+    session.send_rpc(query)
+
+
+def test_subtree_query():
+    query = """
+        <get>
+        <filter type="subtree">
+        <devices xmlns="http://tail-f.com/ns/ncs">
+        <global-settings/>
+        </devices>
+        </filter>
+        </get>
+        """
+
     logger.info("Connecting to 127.0.0.1 port %d", NC_PORT)
     session = client.NetconfSSHSession("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG)
     session.send_rpc(query)

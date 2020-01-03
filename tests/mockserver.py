@@ -20,7 +20,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import getpass
 import logging
-from netconf import NSMAP, qmap
+from netconf import NSMAP, qmap, nsmap_add
 import netconf.util as ncutil
 import netconf.error as ncerror
 import netconf.server as ncserver
@@ -31,6 +31,7 @@ NC_PORT = None
 NC_DEBUG = True
 
 mock_module = "urn:mock:module"
+nsmap_add('xmlns', 'http://tail-f.com/ns/ncs')
 
 
 class MockMethods(object):

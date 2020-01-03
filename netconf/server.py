@@ -302,7 +302,7 @@ class NetconfServerSession(base.NetconfSession):
         # Any error with XML encoding here is going to cause a session close
         # Technically we should be able to return malformed message I think.
         try:
-            tree = etree.parse(io.BytesIO(msg.encode('utf-8')))
+            tree = etree.parse(io.BytesIO(msg.lstrip().encode('utf-8')))
             if not tree:
                 raise ncerror.SessionError(msg, "Invalid XML from client.")
         except etree.XMLSyntaxError:

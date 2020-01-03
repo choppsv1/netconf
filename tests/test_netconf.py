@@ -59,7 +59,7 @@ def test_subtree_query():
     session.send_rpc(query)
 
 
-def stest_bad_query():
+def test_bad_query():
     session = client.NetconfSSHSession("127.0.0.1", password="admin", port=NC_PORT, debug=NC_DEBUG)
     try:
         unused, unused, output = session.send_rpc("<get><unknown/></get>")

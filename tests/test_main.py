@@ -1,8 +1,8 @@
 # -*- coding: utf-8 eval: (yapf-mode 1) -*-
 #
-# January 22 2018, Christian E. Hopps <chopps@gmail.com>
+# February 11 2020, Christian E. Hopps <chopps@gmail.com>
 #
-# Copyright (c) 2018, Deutsche Telekom AG.
+# Copyright (c) 2020, Christian E. Hopps
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,14 +20,14 @@
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import getpass
 import logging
+from tempfile import NamedTemporaryFile
 from lxml import etree
-import netconf.client
+from netconf.__main__ import main
 from mockserver import init_mock_server
 from testutil import xml_eq
 
 logger = logging.getLogger(__name__)
 NC_PORT = None
-NC_DEBUG = False
 
 
 def setup_module(unused_module):
@@ -36,12 +36,13 @@ def setup_module(unused_module):
 
 
 def test_get_config():
-    session = netconf.client.NetconfSSHSession("127.0.0.1",
-                                               username=getpass.getuser(),
-                                               password="admin",
-                                               port=NC_PORT,
-                                               debug=NC_DEBUG)
-    result = session.get_config()
+    tmp = NamedTemporaryFile("r")
+    main([
+        "--user",
+        getpass.getuser(), "--password=admin", "--host=127.0.0.1", "--port",
+        str(NC_PORT), "--get-config", "--outfile", tmp.name
+    ])
+    result = etree.fromstring(tmp.read())
     cmptree = etree.fromstring("""
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
   <t:interfaces xmlns:t="urn:test:mock">
@@ -70,12 +71,13 @@ def test_get_config():
 
 
 def test_get():
-    session = netconf.client.NetconfSSHSession("127.0.0.1",
-                                               username=getpass.getuser(),
-                                               password="admin",
-                                               port=NC_PORT,
-                                               debug=NC_DEBUG)
-    result = session.get()
+    tmp = NamedTemporaryFile("r")
+    main([
+        "--user",
+        getpass.getuser(), "--password=admin", "--host=127.0.0.1", "--port",
+        str(NC_PORT), "--get", "--outfile", tmp.name
+    ])
+    result = etree.fromstring(tmp.read())
     cmptree = etree.fromstring("""
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
   <t:interfaces xmlns:t="urn:test:mock">
@@ -110,7 +112,71 @@ def test_get():
     assert (xml_eq(result, cmptree))
 
 
+def test_get_xpath():
+    xpath = "/foo:interfaces/foo:interface[foo:name='AutoInterface0/0']"
+    tmp = NamedTemporaryFile("r")
+    main([
+        "--user",
+        getpass.getuser(),
+        "--password=admin",
+        "--host=127.0.0.1",
+        "--port",
+        str(NC_PORT),
+        "--get",
+        xpath,
+        "--outfile",
+        tmp.name,
+        "--namespaces",
+        "foo=urn:test:mock",
+    ])
+    result = etree.fromstring(tmp.read())
+    cmptree = etree.fromstring("""
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <t:interfaces xmlns:t="urn:test:mock">
+    <t:interface>
+      <t:name>AutoInterface0/0</t:name>
+      <t:shutdown>false</t:shutdown>
+      <t:state>up</t:state>
+    </t:interface>
+  </t:interfaces>
+</nc:data>
+    """)
+    assert (xml_eq(result, cmptree))
+
+
+def test_get_subtree():
+    select = "<foo:interfaces xmlns:foo='urn:test:mock'><foo:interface><foo:name>AutoInterface0/0</foo:name></foo:interface></foo:interfaces>"
+    tmp = NamedTemporaryFile("r")
+    main([
+        "--user",
+        getpass.getuser(),
+        "--password=admin",
+        "--host=127.0.0.1",
+        "--port",
+        str(NC_PORT),
+        "--get",
+        select,
+        "--outfile",
+        tmp.name,
+        "--namespaces",
+        "foo=urn:test:mock",
+    ])
+    result = etree.fromstring(tmp.read())
+    cmptree = etree.fromstring("""
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <t:interfaces xmlns:t="urn:test:mock">
+    <t:interface>
+      <t:name>AutoInterface0/0</t:name>
+      <t:shutdown>false</t:shutdown>
+      <t:state>up</t:state>
+    </t:interface>
+  </t:interfaces>
+</nc:data>
+    """)
+    assert (xml_eq(result, cmptree))
+
+
 __author__ = 'Christian E. Hopps'
-__date__ = 'January 22 2018'
+__date__ = 'February 11 2020'
 __version__ = '1.0'
 __docformat__ = "restructuredtext en"

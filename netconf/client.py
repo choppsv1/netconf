@@ -23,10 +23,10 @@ import io
 import threading
 import socket
 
-import sshutil.conn
 from lxml import etree
 from monotonic import monotonic
-from netconf import NSMAP
+import sshutil.conn
+from netconf import NSMAP, qmap
 from netconf.base import NetconfSession
 from netconf.error import RPCError, SessionError, ReplyTimeoutError
 from netconf import util
@@ -39,23 +39,22 @@ def _is_filter(select):
 
 
 def _get_selection(elm, select):
-    if not select:
+    if select is None or len(select) == 0:
         return
 
-    # XXX Do we want to add any namespace stuff to the filter node here?
+    # Add non-default namespaces to filter element
+    nsmap = {key: value for key, value in NSMAP.items() if key and key != "nc"}
+    felm = util.subelm(elm, "nc:filter", nsmap=nsmap)
 
-    felm = util.elm("nc:filter")
     if hasattr(select, "nsmap"):
-        felm.attrib["type"] = "subtree"
+        felm.attrib[qmap("nc") + "type"] = "subtree"
         felm.append(select)
     elif _is_filter(select):
-        felm.attrib["type"] = "subtree"
+        felm.attrib[qmap("nc") + "type"] = "subtree"
         felm.append(etree.fromstring(select))
     else:
-        felm.attrib["type"] = "xpath"
-        felm.attrib["select"] = select
-
-    elm.append(felm)
+        felm.attrib[qmap("nc") + "type"] = "xpath"
+        felm.attrib[qmap("nc") + "select"] = select
 
 
 class Timeout(object):
@@ -83,7 +82,6 @@ class Timeout(object):
 
 class NetconfClientSession(NetconfSession):
     """Netconf Protocol"""
-
     def __init__(self, stream, debug=False):
         super(NetconfClientSession, self).__init__(stream, debug, None)
         self.message_id = 0
@@ -176,15 +174,15 @@ class NetconfClientSession(NetconfSession):
     def send_rpc_async(self, rpc, noreply=False):
         """Send a generic RPC to the server and await the reply.
 
-        :param rpc: The XML of the netconf RPC, not including the <rpc> tag.
+        :param rpc: The XML of the netconf RPC, not including the <nc:rpc> tag.
         :type rpc: str or `lxml.Element`
         :param noreply: True if no reply is required.
         :type noreply: Boolean
 
         :return: The RPC message id which can be passed to wait_reply for the results.
         """
-        # Not sure it makes sense to go back to a string here, but OK.
-        # Need to be a bit careful about namespaces the default needs to be nc:
+
+        # We use strings to allow users to pass malformed data.
         if hasattr(rpc, "nsmap"):
             rpc = etree.tounicode(rpc)
 
@@ -198,8 +196,9 @@ class NetconfClientSession(NetconfSession):
             logger.debug("%s: Sending RPC message-id: %s", str(self), str(msg_id))
 
         def sendit():
-            self.send_message("""<rpc message-id="{}"
-                xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">{}</rpc>""".format(msg_id, rpc))
+            self.send_message(
+                """<nc:rpc nc:message-id="{}" xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">{}</nc:rpc>"""
+                .format(msg_id, rpc))
 
         if noreply:
             sendit()
@@ -223,34 +222,36 @@ class NetconfClientSession(NetconfSession):
         msg_id = self.send_rpc_async(rpc)
         return self.wait_reply(msg_id, timeout)
 
-    def edit_config_async(self, target, mode, newconf):
-        """Operate on ~config~ in ~target~ using ~newconf~ according to ~mode~ ("merge", "replace" or
+    def edit_config_async(self, target, method, newconf):
+        """Operate on config in ~target~ using ~newconf~ according to ~method~ ("merge", "replace",
         "none"). If "none" then no nodes are modified until a element specifies the mode as an
         attribute.
 
-        :param target: the target of the config, defaults to "running".
-        :param method: "merge", "replace" or "none"
+        :param target: the target of the config.
+        :param method: "merge", "replace", "none".
         :param newconf: The new configuration.
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
         if hasattr(target, "nsmap"):
             target = target.tag
+        elif ":" not in target:
+            target = "nc:" + target
 
         rpc = """
-<edit-config>
-  <target>
+<nc:edit-config>
+  <nc:target>
     <""" + target + """/>
-  </target>
+  </nc:target>
 """
-        if mode is not None and mode != "":
-            rpc += "  <default-operation>{}</default-operation>\n".format(mode)
+        if method is not None and method != "":
+            rpc += "  <nc:default-operation>{}</nc:default-operation>\n".format(method)
         rpc += newconf
-        rpc += "</edit-config>\n"
+        rpc += "</nc:edit-config>\n"
         return self.send_rpc_async(rpc)
 
     def edit_config(self, target="running", method="", newconf="", timeout=None):
-        """Operate on ~config~ in ~target~ using ~newconf~ according to ~mode~ ("merge", "replace" or
+        """Operate on config in ~target~ using ~newconf~ according to ~method~ ("merge", "replace" or
         "none"). If "none" then no nodes are modified until a element specifies the mode as an
         attribute.
 
@@ -277,10 +278,10 @@ class NetconfClientSession(NetconfSession):
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
-        getelm = util.elm("get-config")
+        getelm = util.elm("nc:get-config")
         if not hasattr(source, "nsmap"):
-            source = util.elm(source)
-        util.subelm(util.subelm(getelm, "source"), source)
+            source = util.elm(source if ":" in source or source.startswith("{") else "nc:" + source)
+        util.subelm(util.subelm(getelm, "nc:source"), source)
         _get_selection(getelm, select)
         return self.send_rpc_async(getelm)
 
@@ -294,7 +295,7 @@ class NetconfClientSession(NetconfSession):
         :param select: An XML subtree filter or XPATH expression to select a subsection of config.
         :param timeout: A value in fractional seconds to wait for the operation to complete or
                         `None` for no timeout.
-        :return: The Parsed XML config (i.e., "<config>...</config>".)
+        :return: The Parsed XML config (i.e., "<nc:config>...</config>".)
         :rtype: lxml.Element
         :raises: ReplyTimeoutError, RPCError, SessionError
         """
@@ -313,7 +314,7 @@ class NetconfClientSession(NetconfSession):
         :raises: SessionError
         """
 
-        getelm = util.elm("get")
+        getelm = util.elm("nc:get")
         _get_selection(getelm, select)
         return self.send_rpc_async(getelm)
 
@@ -341,10 +342,10 @@ class NetconfClientSession(NetconfSession):
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
-        lockelm = util.elm("lock")
+        lockelm = util.elm("nc:lock")
         if not hasattr(target, "nsmap"):
-            target = util.elm(target)
-        util.subelm(util.subelm(lockelm, "target"), target)
+            target = util.elm(target if ":" in target or target.startswith("{") else "nc:" + target)
+        util.subelm(util.subelm(lockelm, "nc:target"), target)
         return self.send_rpc_async(lockelm)
 
     def lock(self, target="running", timeout=None):
@@ -367,10 +368,10 @@ class NetconfClientSession(NetconfSession):
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
-        unlockelm = util.elm("unlock")
+        unlockelm = util.elm("nc:unlock")
         if not hasattr(target, "nsmap"):
-            target = util.elm(target)
-        util.subelm(util.subelm(unlockelm, "target"), target)
+            target = util.elm(target if ":" in target or target.startswith("{") else "nc:" + target)
+        util.subelm(util.subelm(unlockelm, "nc:target"), target)
         return self.send_rpc_async(unlockelm)
 
     def unlock(self, target="running", timeout=None):
@@ -416,7 +417,7 @@ class NetconfClientSession(NetconfSession):
 
         for reply in replies:
             try:
-                msg_id = int(reply.get('message-id'))
+                msg_id = int(reply.get(qmap("nc") + 'message-id'))
             except (TypeError, ValueError):
                 # # Cisco is returning errors without message-id attribute which
                 # # is non-rfc-conforming it is doing this for any malformed XML
@@ -477,8 +478,14 @@ class NetconfSSHSession(NetconfClientSession):
         if username is None:
             import getpass
             username = getpass.getuser()
-        stream = sshutil.conn.SSHClientSession(
-            host, port, "netconf", username, password, debug, cache=cache, proxycmd=proxycmd)
+        stream = sshutil.conn.SSHClientSession(host,
+                                               port,
+                                               "netconf",
+                                               username,
+                                               password,
+                                               debug,
+                                               cache=cache,
+                                               proxycmd=proxycmd)
         super(NetconfSSHSession, self).__init__(stream, debug)
 
     def __enter__(self):

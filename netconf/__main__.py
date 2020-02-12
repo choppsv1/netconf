@@ -48,6 +48,20 @@ def main(*margs):
         nargs='?',
         help=("Perform <edit-config>. arg value is the method ('merge' or 'replace') " +
               " 'merge' if not specified. New config is in 'infile' or stdin"))
+    parser.add_argument("--edit-continue-on-error",
+                        action="store_true",
+                        help="Continue to apply edit-config even if error is encountered.")
+    parser.add_argument("--edit-rollback-on-error",
+                        action="store_true",
+                        help=("Rollback edit-config if error is encountered. " +
+                              "Server must support :rollback-on-error capability"))
+    parser.add_argument(
+        "--edit-set-only",
+        action="store_true",
+        help="Don't test edit-config prior to set. Server must support :validate:1.1 capability.")
+    parser.add_argument("--edit-test-only",
+                        action="store_true",
+                        help="Test only edit-config. Server must support :validate:1.1 capability.")
     parser.add_argument('--host', default="localhost", help='Netconf server hostname')
     parser.add_argument(
         '--get',
@@ -152,7 +166,18 @@ def main(*margs):
         if args.edit_config is None:
             result = session.send_rpc(xml)[2]
         else:
-            result = session.edit_config(args.source, args.edit_config, xml, args.timeout)
+            testopt = ""
+            if args.edit_set_only:
+                testopt = "set"
+            if args.edit_test_only:
+                testopt = "test-only"
+            erroropt = ""
+            if args.edit_continue_on_error:
+                erroropt = "continue-on-error"
+            if args.edit_rollback_on_error:
+                erroropt = "rollback-on-error"
+            result = session.edit_config(args.source, args.edit_config, xml, testopt, erroropt,
+                                         args.timeout)
         result = etree.tounicode(result, pretty_print=True)
 
     if args.outfile and args.outfile != "-":

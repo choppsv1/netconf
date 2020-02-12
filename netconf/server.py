@@ -534,16 +534,14 @@ class NetconfMethods(object):
             true:
 
             * A lock is already held by any NETCONF session or another
-            entity. ** The server checks for other sessions but cannot check
-            if another entity (e.g., CLI) has been granted the lock.
-
+              entity. ** The server checks for other sessions but cannot check
+              if another entity (e.g., CLI) has been granted the lock.
             * The target configuration is <candidate>, it has already been
-            modified, and these changes have not been committed or rolled
-            back. ** The server code cannot check this.
-
+              modified, and these changes have not been committed or rolled
+              back. ** The server code cannot check this.
             * The target configuration is <running>, and another NETCONF
-            session has an ongoing confirmed commit (Section 8.4). ** The server
-            code cannot check this.
+              session has an ongoing confirmed commit (Section 8.4). ** The server
+              code cannot check this.
 
         Implement this method and if the lock should not be granted raise the following
         error (or anything else appropriate).

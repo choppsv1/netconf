@@ -50,7 +50,7 @@ def elm(tag, attrib=None, **extra):
 
     :param tag: A possibly prefixed tag.
     :param attrib: Attributes for the element.
-    :param **extra: extra parameters see `lxml.etree.Element`.
+    :param extra: extra parameters see `lxml.etree.Element`.
     :returns: `lxml.etree.Element`.
     """
     if attrib is None:
@@ -67,7 +67,7 @@ def leaf_elm(tag, value, attrib=None, **extra):
     :param tag: A possibly prefixed tag.
     :param value: Value for text of element.
     :param attrib: Attributes for the element.
-    :param **extra: extra parameters see `lxml.etree.Element`.
+    :param extra: extra parameters see `lxml.etree.Element`.
     :returns: `lxml.etree.Element`.
     """
     e = elm(tag, attrib, **extra)
@@ -88,7 +88,7 @@ def subelm(pelm, tag, attrib=None, **extra):
     :param pelm: The parent element.
     :param tag: A possibly prefixed tag.
     :param attrib: Attributes for the element.
-    :param **extra: extra parameters see `lxml.etree.SubElement`.
+    :param extra: extra parameters see `lxml.etree.SubElement`.
     :returns: `lxml.etree.Element`.
     """
     if attrib is None:

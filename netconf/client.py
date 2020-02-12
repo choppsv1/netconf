@@ -111,7 +111,7 @@ class NetconfClientSession(NetconfSession):
                     send = True
 
             if send:
-                self.send_rpc_async("<close-session/>", noreply=True)
+                self.send_rpc_async("<nc:close-session/>", noreply=True)
                 # Don't wait for a reply the session is closed!
         except socket.error:
             if self.debug:
@@ -222,7 +222,7 @@ class NetconfClientSession(NetconfSession):
         msg_id = self.send_rpc_async(rpc)
         return self.wait_reply(msg_id, timeout)
 
-    def edit_config_async(self, target, method, newconf):
+    def edit_config_async(self, target, method, newconf, testopt, erroropt):
         """Operate on config in ~target~ using ~newconf~ according to ~method~ ("merge", "replace",
         "none"). If "none" then no nodes are modified until a element specifies the mode as an
         attribute.
@@ -230,6 +230,9 @@ class NetconfClientSession(NetconfSession):
         :param target: the target of the config.
         :param method: "merge", "replace", "none".
         :param newconf: The new configuration.
+        :param testopt: "test-then-set" (netconf default), "set" or "test-only".
+        :param erroropt: "stop-on-error" (netconf default), "continue-on-error" or
+                         "rollback-on-error".
         :return: The RPC message id which can be passed to wait_reply for the results.
         :raises: SessionError
         """
@@ -244,13 +247,23 @@ class NetconfClientSession(NetconfSession):
     <""" + target + """/>
   </nc:target>
 """
-        if method is not None and method != "":
+        if method:
             rpc += "  <nc:default-operation>{}</nc:default-operation>\n".format(method)
+        if testopt:
+            rpc += "  <nc:test-option>{}</nc:test-option>\n".format(testopt)
+        if erroropt:
+            rpc += "  <nc:error-option>{}</nc:error-option>\n".format(erroropt)
         rpc += newconf
         rpc += "</nc:edit-config>\n"
         return self.send_rpc_async(rpc)
 
-    def edit_config(self, target="running", method="", newconf="", timeout=None):
+    def edit_config(self,
+                    target="running",
+                    method="",
+                    newconf="",
+                    testopt="",
+                    erroropt="",
+                    timeout=None):
         """Operate on config in ~target~ using ~newconf~ according to ~method~ ("merge", "replace" or
         "none"). If "none" then no nodes are modified until a element specifies the mode as an
         attribute.
@@ -258,13 +271,16 @@ class NetconfClientSession(NetconfSession):
         :param target: the target of the config, defaults to "running".
         :param method: "merge" (netconf default), "replace" or "none".
         :param newconf: The new configuration.
+        :param testopt: "test-then-set" (netconf default), "set" or "test-only".
+        :param erroropt: "stop-on-error" (netconf default), "continue-on-error" or
+                         "rollback-on-error".
         :param timeout: A value in fractional seconds to wait for the operation to complete or
                         `None` for no timeout.
         :return: The result of the edit operation
         :rtype: lxml.Element
         :raises: ReplyTimeoutError, RPCError, SessionError
         """
-        msg_id = self.edit_config_async(target, method, newconf)
+        msg_id = self.edit_config_async(target, method, newconf, testopt, erroropt)
         _, reply, _ = self.wait_reply(msg_id, timeout)
         return reply
 
@@ -419,13 +435,17 @@ class NetconfClientSession(NetconfSession):
             try:
                 msg_id = int(reply.get(qmap("nc") + 'message-id'))
             except (TypeError, ValueError):
-                # # Cisco is returning errors without message-id attribute which
-                # # is non-rfc-conforming it is doing this for any malformed XML
-                # # not simply missing message-id attribute.
-                # error = reply.xpath("nc:rpc-error", namespaces=self.nsmap)
-                # if error:
-                #     raise RPCError(received, tree, error[0])
-                raise SessionError(msg, "No valid message-id attribute found")
+                try:
+                    # Deal with servers not properly setting attribute namespace.
+                    msg_id = int(reply.get('message-id'))
+                except (TypeError, ValueError):
+                    # # Cisco is returning errors without message-id attribute which
+                    # # is non-rfc-conforming it is doing this for any malformed XML
+                    # # not simply missing message-id attribute.
+                    # error = reply.xpath("nc:rpc-error", namespaces=self.nsmap)
+                    # if error:
+                    #     raise RPCError(received, tree, error[0])
+                    raise SessionError(msg, "No valid message-id attribute found")
 
             # Queue the message
             with self.cv:

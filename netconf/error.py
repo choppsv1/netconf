@@ -18,7 +18,7 @@
 #
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 from lxml import etree
-from netconf import NSMAP
+from netconf import NSMAP, qmap
 
 
 class NetconfException(Exception):
@@ -113,31 +113,33 @@ RPCERR_TAG_PARTIAL_OPERATION = "partial-operation"
 class RPCServerError(NetconfException):
     def __init__(self, origmsg, etype, tag, **kwargs):
         # Add attrib and nsmap from original message.
-        self.reply = etree.Element("rpc-reply", attrib=origmsg.attrib, nsmap=origmsg.nsmap)
+        self.reply = etree.Element(qmap("nc") + "rpc-reply",
+                                   attrib=origmsg.attrib,
+                                   nsmap=origmsg.nsmap)
 
-        rpcerr = etree.SubElement(self.reply, "rpc-error")
+        rpcerr = etree.SubElement(self.reply, qmap("nc") + "rpc-error")
 
         # We require a type, tag, and severity assuming error for severity.
         if etype in RPCERR_TYPE_ENUM:
             etype = RPCERR_TYPE_ENUM[etype]
-        etree.SubElement(rpcerr, "error-type").text = str(etype)
+        etree.SubElement(rpcerr, qmap("nc") + "error-type").text = str(etype)
 
-        etree.SubElement(rpcerr, "error-tag").text = tag
+        etree.SubElement(rpcerr, qmap("nc") + "error-tag").text = tag
 
         if "severity" not in kwargs:
-            etree.SubElement(rpcerr, "error-severity").text = "error"
+            etree.SubElement(rpcerr, qmap("nc") + "error-severity").text = "error"
 
         # Now convert any other arguments to xml
         for key, value in kwargs.items():
             # Allow info to be a dictionary we convert to sub-elements
             if key == "info" and hasattr(value, "items"):
-                infoelm = etree.SubElement(rpcerr, "error-info")
+                infoelm = etree.SubElement(rpcerr, qmap("nc") + "error-info")
                 for ikey, ivalue in value.items():
                     ikey = ikey.replace('_', '-')
                     etree.SubElement(infoelm, "{}".format(ikey)).text = str(ivalue)
             else:
                 key = key.replace('_', '-')
-                etree.SubElement(rpcerr, "error-{}".format(key)).text = str(value)
+                etree.SubElement(rpcerr, qmap("nc") + "error-{}".format(key)).text = str(value)
 
         # This sort of sucks for humans
         super(RPCServerError, self).__init__(self.get_reply_msg())
@@ -148,13 +150,12 @@ class RPCServerError(NetconfException):
 
 class RPCSvrException(RPCServerError):
     def __init__(self, origmsg, exception, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            RPCERR_TYPE_PROTOCOL,
-            RPCERR_TAG_OPERATION_FAILED,
-            info=str(exception),
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                RPCERR_TYPE_PROTOCOL,
+                                RPCERR_TAG_OPERATION_FAILED,
+                                info=str(exception),
+                                **kwargs)
 
 
 # Need to deprecate this as we are overriding a built-in
@@ -182,14 +183,15 @@ class AccessDeniedProtoError(_AccessDeniedError):
 
 class _BadAttributeError(RPCServerError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_BAD_ATTRIBUTE,
-            info={'bad-element': element.tag,
-                  'bad-attibute': attribute},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_BAD_ATTRIBUTE,
+                                info={
+                                    'bad-element': element.tag,
+                                    'bad-attibute': attribute
+                                },
+                                **kwargs)
 
 
 class BadAttributeAppError(_BadAttributeError):
@@ -211,13 +213,12 @@ class BadAttributeRPCError(_BadAttributeError):
 
 class _BadElementError(RPCServerError):
     def __init__(self, origmsg, element, etype, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_BAD_ELEMENT,
-            info={'bad-element': element.tag},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_BAD_ELEMENT,
+                                info={'bad-element': element.tag},
+                                **kwargs)
 
 
 class BadElementAppError(_BadElementError):
@@ -259,13 +260,12 @@ class InvalidValueProtoError(_InvalidValueError):
 
 class LockDeniedProtoError(RPCServerError):
     def __init__(self, origmsg, session_id, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            RPCERR_TYPE_PROTOCOL,
-            RPCERR_TAG_LOCK_DENIED,
-            info={'session-id': str(session_id)},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                RPCERR_TYPE_PROTOCOL,
+                                RPCERR_TAG_LOCK_DENIED,
+                                info={'session-id': str(session_id)},
+                                **kwargs)
 
 
 class MalformedMessageRPCError(RPCServerError):
@@ -273,21 +273,21 @@ class MalformedMessageRPCError(RPCServerError):
     If the server raises this exception the and netconf 1.0 is in use,
     the session will be closed
     """
-
     def __init__(self, origmsg):
         RPCServerError.__init__(self, origmsg, RPCERR_TYPE_RPC, RPCERR_TAG_MALFORMED_MESSAGE)
 
 
 class _MissingAttributeError(RPCServerError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_MISSING_ATTRIBUTE,
-            info={'bad-element': element.tag,
-                  'bad-attibute': attribute},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_MISSING_ATTRIBUTE,
+                                info={
+                                    'bad-element': element.tag,
+                                    'bad-attibute': attribute
+                                },
+                                **kwargs)
 
 
 class MissingAttributeAppError(_MissingAttributeError):
@@ -310,13 +310,12 @@ class MissingAttributeRPCError(_MissingAttributeError):
 
 class _MissingElementError(RPCServerError):
     def __init__(self, origmsg, tag, etype, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_MISSING_ELEMENT,
-            info={'bad-element': str(tag)},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_MISSING_ELEMENT,
+                                info={'bad-element': str(tag)},
+                                **kwargs)
 
 
 class MissingElementAppError(_MissingElementError):
@@ -439,14 +438,15 @@ class TooBigTransportError(_TooBigError):
 
 class _UnknownAttributeError(RPCServerError):
     def __init__(self, origmsg, element, attribute, etype, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_UNKNOWN_ATTRIBUTE,
-            info={'bad-element': element.tag,
-                  'bad-attibute': attribute},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_UNKNOWN_ATTRIBUTE,
+                                info={
+                                    'bad-element': element.tag,
+                                    'bad-attibute': attribute
+                                },
+                                **kwargs)
 
 
 class UnknownAttributeAppError(_UnknownAttributeError):
@@ -469,13 +469,12 @@ class UnknownAttributeRPCError(_UnknownAttributeError):
 
 class _UnknownElementError(RPCServerError):
     def __init__(self, origmsg, element, etype, **kwargs):
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_UNKNOWN_ELEMENT,
-            info={'bad-element': element.tag},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_UNKNOWN_ELEMENT,
+                                info={'bad-element': element.tag},
+                                **kwargs)
 
 
 class UnknownElementAppError(_UnknownElementError):
@@ -497,14 +496,15 @@ class _UnknownNamespaceError(RPCServerError):
         except Exception:
             tag = element.tag
             ns = "no namespace map"
-        RPCServerError.__init__(
-            self,
-            origmsg,
-            etype,
-            RPCERR_TAG_UNKNOWN_NAMESPACE,
-            info={'bad-element': tag,
-                  'bad-namespace': ns},
-            **kwargs)
+        RPCServerError.__init__(self,
+                                origmsg,
+                                etype,
+                                RPCERR_TAG_UNKNOWN_NAMESPACE,
+                                info={
+                                    'bad-element': tag,
+                                    'bad-namespace': ns
+                                },
+                                **kwargs)
 
 
 class UnknownNamespaceAppError(_UnknownNamespaceError):

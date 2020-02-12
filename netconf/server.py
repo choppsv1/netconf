@@ -50,7 +50,6 @@ class SSHAuthorizedKeysController(ssh.ServerInterface):
 
     :param users: A list of usernames whose authorized keys will allow access.
     """
-
     def __init__(self, users=None):
         self.event = threading.Event()
         self.users = users
@@ -177,7 +176,6 @@ class SSHUserPassController(ssh.ServerInterface):
     :param username: The username to allow.
     :param password: The password to allow.
     """
-
     def __init__(self, username=None, password=None):
         self.username = username
         self.password = password
@@ -283,7 +281,7 @@ class NetconfServerSession(base.NetconfSession):
 
     def _rpc_not_implemented(self, unused_session, rpc, *unused_params):
         if self.debug:
-            msg_id = rpc.get('message-id')
+            msg_id = rpc.get(qmap("nc") + 'message-id')
             logger.debug("%s: Not Impl msg-id: %s", str(self), msg_id)
         raise ncerror.OperationNotSupportedProtoError(rpc)
 
@@ -302,7 +300,7 @@ class NetconfServerSession(base.NetconfSession):
         # Any error with XML encoding here is going to cause a session close
         # Technically we should be able to return malformed message I think.
         try:
-            tree = etree.parse(io.BytesIO(msg.encode('utf-8')))
+            tree = etree.parse(io.BytesIO(msg.lstrip().encode('utf-8')))
             if not tree:
                 raise ncerror.SessionError(msg, "Invalid XML from client.")
         except etree.XMLSyntaxError:
@@ -315,7 +313,7 @@ class NetconfServerSession(base.NetconfSession):
 
         for rpc in rpcs:
             try:
-                msg_id = rpc.get('message-id')
+                msg_id = rpc.get(qmap("nc") + 'message-id')
                 if self.debug:
                     logger.debug("%s: Received rpc message-id: %s", str(self), msg_id)
             except (TypeError, ValueError):
@@ -478,7 +476,6 @@ class NetconfMethods(object):
     inherit). Create a class that implements the rpc_* methods you handle and pass
     that to `NetconfSSHServer` init.
     """
-
     def nc_append_capabilities(self, capabilities):  # pylint: disable=W0613
         """This method should append any capabilities it supports to capabilities
 
@@ -630,7 +627,6 @@ class NetconfSSHServer(sshutil.server.SSHServer):
     :param host_key: The file containing the host key.
     :param debug: True to enable debug logging.
     """
-
     def __init__(self, server_ctl=None, server_methods=None, port=830, host_key=None, debug=False):
         self.server_methods = server_methods if server_methods is not None else NetconfMethods()
         self.session_id = 1
@@ -639,12 +635,11 @@ class NetconfSSHServer(sshutil.server.SSHServer):
             "running": 0,
             "candidate": 0,
         }
-        super(NetconfSSHServer, self).__init__(
-            server_ctl,
-            server_session_class=NetconfServerSession,
-            port=port,
-            host_key=host_key,
-            debug=debug)
+        super(NetconfSSHServer, self).__init__(server_ctl,
+                                               server_session_class=NetconfServerSession,
+                                               port=port,
+                                               host_key=host_key,
+                                               debug=debug)
 
     def __del__(self):
         logger.error("Deleting %s", str(self))

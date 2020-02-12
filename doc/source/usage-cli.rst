@@ -14,10 +14,10 @@ To get the capabilities of a server:
 .. code-block:: sh
 
   $ netconf-client … --hello
-  urn:ietf:params:netconf:capability:xpath:1.0
-  urn:ietf:params:xml:ns:yang:ietf-system
   urn:ietf:params:netconf:base:1.1
   urn:ietf:params:netconf:base:1.0
+  urn:ietf:params:xml:ns:yang:ietf-system
+  urn:ietf:params:netconf:capability:xpath:1.0
 
 .. _cli-auth:
 
@@ -66,7 +66,7 @@ SSH Authentication
 Get Config
 ==========
 
-To request config.
+To request config (see :ref:`cli-auth` for authentication).
 
 .. code-block:: sh
 
@@ -84,14 +84,15 @@ To request config filtered by an xpath expression.
 
 .. code-block:: sh
 
-  $ netconf-client … --get-config="/system/clock"
-  <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  $ netconf-client … --get-config="/sys:system/sys:clock"
+                     --namespaces="sys=urn:ietf:params:xml:ns:yang:ietf-system"
+  <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
     <sys:system xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
       <sys:clock>
         <sys:timezone-utc-offset>180</sys:timezone-utc-offset>
       </sys:clock>
     </sys:system>
-  </data>
+  </nc:data>
 
 Get State
 =========
@@ -101,32 +102,54 @@ To request operational state (see :ref:`cli-auth` for authentication)
 .. code-block:: sh
 
   $ netconf-client … --get
-  <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
-      <sys:system>
-        <sys:os-name>Linux</sys:os-name>
-        <sys:os-release>4.15.3-2-ARCH</sys:os-release>
-        <sys:os-version>#1 SMP PREEMPT Thu Feb 15 00:13:49 UTC 2018</sys:os-version>
-        <sys:machine>x86_64</sys:machine>
-      </sys:system>
+  <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <sys:system xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:hostname>tops</sys:hostname>
       <sys:clock>
-        <sys:current-datetime>2018-02-24T12:57:18.537626</sys:current-datetime>
-        <sys:boot-datetime>2018-02-23T09:12:22.838012</sys:boot-datetime>
+        <sys:timezone-utc-offset>180</sys:timezone-utc-offset>
+      </sys:clock>
+    </sys:system>
+    <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:platform>
+        <sys:os-name>Linux</sys:os-name>
+        <sys:os-release>5.4.14-arch1-1</sys:os-release>
+        <sys:os-version>#1 SMP PREEMPT Thu, 23 Jan 2020 10:07:05 +0000</sys:os-version>
+        <sys:machine>x86_64</sys:machine>
+      </sys:platform>
+      <sys:clock>
+        <sys:current-datetime>2020-02-11T18:20:14.516992</sys:current-datetime>
+        <sys:boot-datetime>2020-02-10T06:31:26.787100</sys:boot-datetime>
       </sys:clock>
     </sys:system-state>
-  </data>
+  </nc:data>
 
+To request state filtered by a sub-tree XML filter
+
+.. code-block:: sh
+
+  $ netconf-client --port=8300 -u admin -p admin --get '<system-state><platform/></system-state>'
+  <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
+      <sys:platform>
+        <sys:os-name>Linux</sys:os-name>
+        <sys:os-release>5.4.14-arch1-1</sys:os-release>
+        <sys:os-version>#1 SMP PREEMPT Thu, 23 Jan 2020 10:07:05 +0000</sys:os-version>
+        <sys:machine>x86_64</sys:machine>
+      </sys:platform>
+    </sys:system-state>
+  </nc:data>
 
 To request state filtered by an xpath expression.
 
 .. code-block:: sh
 
-  $ netconf-client … --get="/system-system/clock"
-  <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  $ netconf-client … --get="/sys:system-state/sys:clock" \
+                     --namespaces="sys=urn:ietf:params:xml:ns:yang:ietf-system"
+  <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
     <sys:system-state xmlns:sys="urn:ietf:params:xml:ns:yang:ietf-system">
       <sys:clock>
-        <sys:current-datetime>2018-02-24T12:57:18.537626</sys:current-datetime>
-        <sys:boot-datetime>2018-02-23T09:12:22.838012</sys:boot-datetime>
+        <sys:current-datetime>2020-02-11T18:27:16.336916</sys:current-datetime>
+        <sys:boot-datetime>2020-02-10T06:31:26.787025</sys:boot-datetime>
       </sys:clock>
     </sys:system-state>
-  </data>
+  </nc:data>

@@ -25,6 +25,7 @@ import sys
 from lxml import etree
 from sshutil.server import from_private_key_file
 from . import client
+from . import nsmap_add
 
 
 def parse_password_arg(password):
@@ -59,17 +60,26 @@ def main(*margs):
         nargs='?',
         help=
         "Perform <get-config>. arg value is xpath/xml filter or taken from infile if not specified")
-    parser.add_argument(
-        '--hello', action="store_true", help="Do hello and return capabilities of server.")
+    parser.add_argument('--hello',
+                        action="store_true",
+                        help="Do hello and return capabilities of server.")
     parser.add_argument("-i", "--infile", help="File to read from")
     parser.add_argument(
         '-p',
         '--password',
         default=None,
         help='Password (or passphrase) use "env:" or "file:" prefix to specify password source')
-    parser.add_argument(
-        '-k', '--keyfile', default=None, help='SSH key use password to specify passphrase')
+    parser.add_argument('-k',
+                        '--keyfile',
+                        default=None,
+                        help='SSH key use password to specify passphrase')
     # Deprecated now parse password args more functional
+    parser.add_argument('--namespaces',
+                        nargs="+",
+                        default=list(),
+                        help="list of prefix=namespace pairs for use with xpath")
+
+    parser.add_argument("-o", "--outfile", help="File to write to")
     parser.add_argument('--passenv', default=None, help=argparse.SUPPRESS)
     parser.add_argument('--port', type=int, default=830, help='Netconf server port')
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet operation")
@@ -99,16 +109,36 @@ def main(*margs):
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    session = client.NetconfSSHSession(
-        args.host, args.port, args.username, args.password, debug=args.debug)
+    for ns in args.namespaces:
+        prefix, namespace = ns.split("=", 1)
+        nsmap_add(prefix, namespace)
+
+    session = client.NetconfSSHSession(args.host,
+                                       args.port,
+                                       args.username,
+                                       args.password,
+                                       debug=args.debug)
 
     if args.hello:
         result = "\n".join(session.capabilities) + "\n"
-    elif args.get is not None:
-        result = session.get(args.get, args.timeout)
-        result = "  " + etree.tounicode(result, pretty_print=True)
-    elif args.get_config is not None:
-        result = session.get_config(args.source, args.get_config, args.timeout)
+    elif args.get is not None or args.get_config is not None:
+        if args.get:
+            select = args.get
+        elif args.get_config:
+            select = args.get_config
+        elif args.infile:
+            if args.infile == "-":
+                select = sys.stdin.read()
+            else:
+                select = open(args.infile).read()
+        else:
+            select = None
+
+        if args.get is not None:
+            result = session.get(select, args.timeout)
+        else:
+            assert args.get_config is not None
+            result = session.get_config(args.source, select, args.timeout)
         result = "  " + etree.tounicode(result, pretty_print=True)
     else:
         if args.infile:
@@ -123,8 +153,14 @@ def main(*margs):
             result = session.send_rpc(xml)[2]
         else:
             result = session.edit_config(args.source, args.edit_config, xml, args.timeout)
-            result = etree.tounicode(result, pretty_print=True)
-    sys.stdout.write(result)
+        result = etree.tounicode(result, pretty_print=True)
+
+    if args.outfile and args.outfile != "-":
+        with open(args.outfile, "w") as f:
+            f.write(result)
+    else:
+        sys.stdout.write(result)
+
     session.close()
 
 

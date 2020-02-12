@@ -20,7 +20,7 @@ from __future__ import absolute_import, division, unicode_literals, print_functi
 import copy
 import logging
 from lxml import etree
-from netconf import NSMAP
+from netconf import NSMAP, qmap
 from netconf import error
 
 # Tries to somewhat implement RFC6241 filtering
@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 def qname(tag):
+    """Return a qualified tag name (i.e. {namespace}localtag)
+
+    Handles prefix notation by looking up in global dictionary.
+
+    :param tag: A possibly prefixed tag.
+    :returns: Fully qualified tag name (`lxml.etree.QName`).
+    """
     try:
         return etree.QName(tag)
     except ValueError:
@@ -36,12 +43,33 @@ def qname(tag):
 
 
 def elm(tag, attrib=None, **extra):
+    """Create an `lxml.etree.Element` using `qname` to obtain the tag.
+
+    This is a replacement for calling `lxml.etree.Element` directly that
+    supports prefixed tags.
+
+    :param tag: A possibly prefixed tag.
+    :param attrib: Attributes for the element.
+    :param **extra: extra parameters see `lxml.etree.Element`.
+    :returns: `lxml.etree.Element`.
+    """
     if attrib is None:
         attrib = dict()
     return etree.Element(qname(tag), attrib, **extra)
 
 
 def leaf_elm(tag, value, attrib=None, **extra):
+    """Create an `lxml.etree.Element` leaf node using `qname` to obtain the tag.
+
+    This is a replacement for calling `lxml.etree.Element` directly that supports
+    prefixed tags.
+
+    :param tag: A possibly prefixed tag.
+    :param value: Value for text of element.
+    :param attrib: Attributes for the element.
+    :param **extra: extra parameters see `lxml.etree.Element`.
+    :returns: `lxml.etree.Element`.
+    """
     e = elm(tag, attrib, **extra)
     e.text = str(value)
     return e
@@ -52,6 +80,17 @@ leaf = leaf_elm
 
 
 def subelm(pelm, tag, attrib=None, **extra):
+    """Create an child `lxml.etree.Element` using `qname` to obtain the tag.
+
+    This is a replacement for calling `lxml.etree.SubElement` directly that
+    supports prefixed tags.
+
+    :param pelm: The parent element.
+    :param tag: A possibly prefixed tag.
+    :param attrib: Attributes for the element.
+    :param **extra: extra parameters see `lxml.etree.SubElement`.
+    :returns: `lxml.etree.Element`.
+    """
     if attrib is None:
         attrib = dict()
     return etree.SubElement(pelm, qname(tag), attrib, **extra)
@@ -150,6 +189,93 @@ def xpath_filter_result(data, xpath):
     return data
 
 
+def _get_xpath_tag(nsmap, ns, child):
+    del ns
+    ctag = qname(child.tag)
+    ns = _ns2prefix(nsmap, ctag.namespace)
+    if ns == "*":
+        return "*[local-name()='{}']".format(ctag.localname), ns
+    else:
+        return "{}:{}".format(ns, ctag.localname), ns
+
+
+def _get_xpath_tag_if_inheritance_worked(nsmap, ns, child):
+    ctag = qname(child.tag)
+    if ((ns != "*" and ctag.namespace == nsmap[ns]) or (ns == "*" and not ctag.namespace)):
+        tag = "{tag}".format(tag=ctag.localname)
+    else:
+        ns = _ns2prefix(nsmap, ctag.namespace)
+        tag = "{ns}:{tag}".format(ns=ns, tag=ctag.localname)
+    return tag, ns
+
+
+def _linearize(el, ns, path):
+
+    mpaths = []
+    select_count = 0
+
+    # Get match criteria
+    for child in el:
+        if len(child) > 0:
+            # This should be a user friendly error
+            # assert not child.text
+            select_count += 1
+        elif child.text and child.text.strip():
+            tag, _ = _get_xpath_tag(NSMAP, ns, child)
+            ctext = child.text.strip().replace("'", r"\'")
+            mpaths.append("{}='{}'".format(tag, ctext))
+        else:
+            select_count += 1
+
+    if mpaths:
+        path += "[" + " or ".join(mpaths) + "]"
+        if not select_count:
+            # If we only have match nodes then return the contained that match
+            yield path
+            return
+
+    for child in el:
+        tag, newns = _get_xpath_tag(NSMAP, ns, child)
+        if len(child) > 0:
+            text = '{path}/{tag}'.format(path=path, tag=tag)
+            for x in _linearize(child, newns, text):
+                yield x
+        else:
+            text = '/{tag}'.format(tag=tag)
+            yield path + text
+
+
+def _ns2prefix(nsmap, namespace):
+    if not namespace:
+        return "*"
+
+    for prefix, ns in nsmap.items():
+        if namespace is None:
+            return prefix
+        if ns == namespace:
+            return prefix
+    # This is an error
+    assert False
+
+
+def filter_to_xpath(felm):
+    """Convert a filter sub-tree to an xpath expression.
+
+    :param felm: A subtree-filter XML sub-tree.
+    :returns str: An xpath expression equivalent to the sub-tree.
+    """
+    root = felm[0]
+    rtag = qname(root.tag)
+    ns = _ns2prefix(root.nsmap, rtag.namespace)
+    xpaths = []
+    root_xpath = _get_xpath_tag(NSMAP, None, root)[0]
+    for path in _linearize(root, ns, "/{}".format(root_xpath)):
+        xpaths.append(path)
+
+    result = ' | '.join(xpaths)
+    return result
+
+
 def filter_results(rpc, data, filter_or_none, debug=False):
     """Check for a user filter and prune the result data accordingly.
 
@@ -161,20 +287,24 @@ def filter_results(rpc, data, filter_or_none, debug=False):
     if filter_or_none is None:
         return data
 
-    if 'type' not in filter_or_none.attrib or filter_or_none.attrib['type'] == "subtree":
+    type_attr_name = qmap("nc") + "type"
+    select_attr_name = qmap("nc") + "select"
+
+    if type_attr_name not in filter_or_none.attrib or filter_or_none.attrib[
+            type_attr_name] == "subtree":
         # Check for the pathalogical case of empty filter since that's easy to implement.
         if not filter_or_none.getchildren():
-            return elm("data")
-        # xpf = Convert subtree filter to xpath!
-        logger.warning("Filtering with subtree not implemented yet.")
-        raise error.OperationNotSupportedProtoError(rpc)
-    elif filter_or_none.attrib['type'] == "xpath":
-        if 'select' not in filter_or_none.attrib:
-            raise error.MissingAttributeProtoError(rpc, filter_or_none, "select")
-        xpf = filter_or_none.attrib['select']
+            return elm("nc:data")
+
+        xpf = filter_to_xpath(filter_or_none)
+
+    elif filter_or_none.attrib[type_attr_name] == "xpath":
+        if select_attr_name not in filter_or_none.attrib:
+            raise error.MissingAttributeProtoError(rpc, filter_or_none, select_attr_name)
+        xpf = filter_or_none.attrib[select_attr_name]
     else:
-        msg = "unexpected type: " + str(filter_or_none.attrib['type'])
-        raise error.BadAttributeProtoError(rpc, filter_or_none, "type", message=msg)
+        msg = "unexpected type: " + str(filter_or_none.attrib[type_attr_name])
+        raise error.BadAttributeProtoError(rpc, filter_or_none, type_attr_name, message=msg)
 
     logger.debug("Filtering on xpath expression: %s", str(xpf))
     return xpath_filter_result(data, xpf)

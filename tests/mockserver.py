@@ -20,7 +20,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function, nested_scopes
 import getpass
 import logging
-from netconf import NSMAP, qmap
+from netconf import NSMAP, qmap, nsmap_add
 import netconf.util as ncutil
 import netconf.error as ncerror
 import netconf.server as ncserver
@@ -30,7 +30,8 @@ nc_server = None
 NC_PORT = None
 NC_DEBUG = True
 
-mock_module = "urn:mock:module"
+mock_module = "urn:test:mock"
+nsmap_add('t', 'urn:test:mock')
 
 
 class MockMethods(object):
@@ -40,32 +41,38 @@ class MockMethods(object):
     The server return not-implemented if the method is not found in the methods object,
     so feel free to use duck-typing here (i.e., no need to inherit)
     """
-
     def nc_append_capabilities(self, capabilities):  # pylint: disable=W0613
         """The server should append any capabilities it supports to capabilities"""
         ncutil.subelm(capabilities, "capability").text = mock_module
         ncutil.subelm(capabilities,
                       "capability").text = "urn:ietf:params:netconf:capability:xpath:1.0"
+        ncutil.subelm(capabilities, "capability").text = "urn:test:mock"
 
     def rpc_get(self, session, rpc, filter_or_none):  # pylint: disable=W0613
-        data = ncutil.elm("data")
-        cont = ncutil.subelm(data, "interfaces")
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "Ethernet0/0"))
-        listval.append(ncutil.leaf_elm("shutdown", "true"))
-        listval.append(ncutil.leaf_elm("state", "down"))
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "Ethernet0/1"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
-        listval.append(ncutil.leaf_elm("state", "down"))
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "FastEthernet1/0"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
-        listval.append(ncutil.leaf_elm("state", "up"))
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "FastEthernet1/1"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
-        listval.append(ncutil.leaf_elm("state", "down"))
+        data = ncutil.elm("nc:data")
+        cont = ncutil.subelm(data, "t:interfaces")
+        # Not in config
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "AutoInterface0/0"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        listval.append(ncutil.leaf_elm("t:state", "up"))
+        # In config
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "Ethernet0/0"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "true"))
+        listval.append(ncutil.leaf_elm("t:state", "down"))
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "Ethernet0/1"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        listval.append(ncutil.leaf_elm("t:state", "down"))
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "FastEthernet1/0"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        listval.append(ncutil.leaf_elm("t:state", "up"))
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "FastEthernet1/1"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        listval.append(ncutil.leaf_elm("t:state", "down"))
 
         return ncutil.filter_results(rpc, data, filter_or_none)
 
@@ -75,23 +82,23 @@ class MockMethods(object):
             # Really this should be a different error its a bad value for source not missing
             raise ncerror.MissingElementProtoError(rpc, ncutil.qname("nc:running"))
 
-        data = ncutil.elm("data")
-        cont = ncutil.subelm(data, "interfaces")
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "Ethernet0/0"))
-        listval.append(ncutil.leaf_elm("shutdown", "true"))
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "Ethernet0/1"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "FastEthernet1/0"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
-        listval = ncutil.subelm(cont, "interface")
-        listval.append(ncutil.leaf_elm("name", "FastEthernet1/1"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
-        # Missing from operational
-        listval.append(ncutil.leaf_elm("name", "GigabitEthernet2/0"))
-        listval.append(ncutil.leaf_elm("shutdown", "false"))
+        data = ncutil.elm("nc:data")
+        cont = ncutil.subelm(data, "t:interfaces")
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "Ethernet0/0"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "true"))
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "Ethernet0/1"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "FastEthernet1/0"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        listval = ncutil.subelm(cont, "t:interface")
+        listval.append(ncutil.leaf_elm("t:name", "FastEthernet1/1"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
+        # Not in operational
+        listval.append(ncutil.leaf_elm("t:name", "GigabitEthernet2/0"))
+        listval.append(ncutil.leaf_elm("t:shutdown", "false"))
 
         return ncutil.filter_results(rpc, data, filter_or_none)
 
@@ -120,12 +127,11 @@ def init_mock_server():
         logger.error("XXX Called init_mock_server called multiple times")
     else:
         sctrl = ncserver.SSHUserPassController(username=getpass.getuser(), password="admin")
-        init_mock_server.server = ncserver.NetconfSSHServer(
-            server_ctl=sctrl,
-            server_methods=MockMethods(),
-            port=None,
-            host_key="tests/host_key",
-            debug=NC_DEBUG)
+        init_mock_server.server = ncserver.NetconfSSHServer(server_ctl=sctrl,
+                                                            server_methods=MockMethods(),
+                                                            port=None,
+                                                            host_key="tests/host_key",
+                                                            debug=NC_DEBUG)
     return init_mock_server.server.port
 
 

@@ -48,6 +48,7 @@ extension-pkg-whitelist=lxml
 # C0111 Invalid constant name (global variables)
 # C0325 Unnecessary parens after 'return' keyword
 # C0326 No space allowed before bracket
+# C0415 Import outside top level
 # R0201 Method could be a funcion
 # R0902 Too many instance attributes
 # R0903 Too few pubilc methods
@@ -59,7 +60,7 @@ extension-pkg-whitelist=lxml
 # W0232 Class has no __init__ method
 # W0511 XXX
 # W0703 Catching too general exception Exception
-disable=I,R,C0103,C0111,C0302,C0325,C0326,R0201,R0902,R0903,R0922,R0923,W0105,W0232,W0511,W0603,W0613,W0703
+disable=I,R,C0103,C0111,C0302,C0325,C0326,C0415,R0201,R0902,R0903,R0922,R0923,W0105,W0232,W0511,W0603,W0613,W0703
 
 [REPORTS]
 

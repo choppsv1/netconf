@@ -189,7 +189,7 @@ class _BadAttributeError(RPCServerError):
                                 RPCERR_TAG_BAD_ATTRIBUTE,
                                 info={
                                     'bad-element': element.tag,
-                                    'bad-attibute': attribute
+                                    'bad-attribute': attribute
                                 },
                                 **kwargs)
 
@@ -285,7 +285,7 @@ class _MissingAttributeError(RPCServerError):
                                 RPCERR_TAG_MISSING_ATTRIBUTE,
                                 info={
                                     'bad-element': element.tag,
-                                    'bad-attibute': attribute
+                                    'bad-attribute': attribute
                                 },
                                 **kwargs)
 
@@ -444,7 +444,7 @@ class _UnknownAttributeError(RPCServerError):
                                 RPCERR_TAG_UNKNOWN_ATTRIBUTE,
                                 info={
                                     'bad-element': element.tag,
-                                    'bad-attibute': attribute
+                                    'bad-attribute': attribute
                                 },
                                 **kwargs)
 

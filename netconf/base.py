@@ -183,6 +183,10 @@ class NetconfFramingTransport(NetconfPacketTransport):
                 break
             searchfrom = max(0, len(self.rbuffer) - 5)
             buf = self.stream.recv(self.max_chunk)
+            if not buf:
+                if self.debug:
+                    logger.debug("Channel closed: stream is None")
+                raise ChannelClosed(self)
             self.rbuffer += buf
 
         msg = self.rbuffer[:eomidx]
